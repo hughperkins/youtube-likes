@@ -8,3 +8,8 @@ Target usage:
   - that runs this eg every 15-60 minutes
   - be sure to copy `config.yml.templ` to `config.yml`, and fill in the api key etc
   - thats it :-)
+
+## Similar projects:
+
+- [github-stars](https://github.com/hughperkins/github-stars)
+- [stackexchange-rep](https://github.com/hughperkins/stackexchange-rep)
