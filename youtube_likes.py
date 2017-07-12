@@ -2,7 +2,7 @@ import requests
 import argparse
 import json
 from os import path
-import ruamel_yaml as yaml
+from ruamel import yaml
 
 import warnings
 warnings.simplefilter('ignore', yaml.error.UnsafeLoaderWarning)
@@ -29,7 +29,7 @@ def run(config_file):
     # print('res.status_code', res.status_code)
     assert res.status_code == 200
     # print(res.content)
-    d = json.loads(res.content)
+    d = json.loads(res.content.decode('utf-8'))
     # print(json.dumps(d, indent=2))
     videos = []
     for item in d['items']:
@@ -48,7 +48,7 @@ def run(config_file):
                             api_key=api_key))
     # print('res.status_code', res.status_code)
     assert res.status_code == 200
-    d = json.loads(res.content)
+    d = json.loads(res.content.decode('utf-8'))
     # print(json.dumps(d, indent=2))
     videos = []
     for item in d['items']:
