@@ -5,7 +5,7 @@ from os import path
 import ruamel_yaml as yaml
 
 import warnings
-warnings.simplefilter('ignore', ruamel.yaml.error.UnsafeLoaderWarning)
+warnings.simplefilter('ignore', yaml.error.UnsafeLoaderWarning)
 
 def run(config_file):
     with open(config_file, 'r') as f:
