@@ -26,7 +26,7 @@ def run(config_file):
         print('res.status_code %s' % res.status_code)
         print(res.content)
         raise Exception('invalid status code %s' % res.status_code)
-    d = json.loads(res.content)
+    d = json.loads(res.content.decode('utf-8'))
     # print(json.dumps(d, indent=2))
     persisted['num_subscriptions'] = d['items'][0]['statistics']['subscriberCount']
     # print('num_subscriptions %s')
