@@ -27,6 +27,9 @@ def run(config_file):
         '&part=snippet%2CcontentDetails'
         '&key={api_key}'.format(api_key=api_key, channel_id=channel_id))
     # print('res.status_code', res.status_code)
+    if res.status_code != 200:
+        print('res.status_code %s' % res.status_code)
+        print(res.content)
     assert res.status_code == 200
     # print(res.content)
     d = json.loads(res.content.decode('utf-8'))
