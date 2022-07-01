@@ -7,6 +7,7 @@ from ruamel import yaml
 import warnings
 warnings.simplefilter('ignore', yaml.error.UnsafeLoaderWarning)
 
+
 def run(config_file):
     with open(config_file, 'r') as f:
         config = yaml.load(f)
@@ -108,7 +109,7 @@ def run(config_file):
                 if old_video[k] != video[k]:
                     output += '  %s %s => %s\n' % (k, old_video[k], video[k])
             if output != '':
-                print((video['title'] + ':').encode('utf-8'))
+                print((video['title'] + ':'))
                 print(output[:-1])
 
     if persisted['num_subscriptions'] != old_persisted['num_subscriptions']:
