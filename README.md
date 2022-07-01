@@ -49,6 +49,7 @@ pyenv activate youtube-likes
 From the cloned repository:
 ```
 pyenv activate youtube-likes
+pip install -r requirements.txt
 python youtube_likes.py
 ```
 
