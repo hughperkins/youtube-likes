@@ -42,6 +42,7 @@ cp config.yml.templ config.yml
 pyenv install 3.8.5
 pyenv virtualenv 3.8.5 youtube-likes
 pyenv activate youtube-likes
+pip install -r requirements.txt
 ```
 
 ## To run
@@ -49,7 +50,6 @@ pyenv activate youtube-likes
 From the cloned repository:
 ```
 pyenv activate youtube-likes
-pip install -r requirements.txt
 python youtube_likes.py
 ```
 
