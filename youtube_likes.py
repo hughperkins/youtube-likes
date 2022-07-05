@@ -1,3 +1,10 @@
+# Note, if you run this from crontab, you should put the following in front
+# of the python command:
+# PYTHONIOENCODING=utf-8
+# eg
+# PYTHONIOENCODING=utf-8 python youtube_likes.py
+# (otherwise it won't handle non-latin characters ok)
+
 import requests
 import argparse
 import json
@@ -109,7 +116,7 @@ def run(config_file):
                 if old_video[k] != video[k]:
                     output += '  %s %s => %s\n' % (k, old_video[k], video[k])
             if output != '':
-                print((video['title'] + ':').encode('utf-8'))
+                print((video['title'] + ':'))
                 print(output[:-1])
 
     if persisted['num_subscriptions'] != old_persisted['num_subscriptions']:
