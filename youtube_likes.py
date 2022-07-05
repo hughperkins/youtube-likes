@@ -109,7 +109,7 @@ def run(config_file):
                 if old_video[k] != video[k]:
                     output += '  %s %s => %s\n' % (k, old_video[k], video[k])
             if output != '':
-                print((video['title'] + ':'))
+                print((video['title'] + ':').encode('utf-8'))
                 print(output[:-1])
 
     if persisted['num_subscriptions'] != old_persisted['num_subscriptions']:
