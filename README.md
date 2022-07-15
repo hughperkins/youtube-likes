@@ -24,7 +24,8 @@ cd youtube-likes
 ```
 cp config.yml.templ config.yml
 ```
-- open config.yml in a text editor, and fill in your channel id (you can get this by going to your channel, and looking in the url, everything after `https://www.youtube.com/channel/`)
+- open config.yml in a text editor, and fill in your channel name and your channel id (you can get this by going to your channel, and looking in the url, everything after `https://www.youtube.com/channel/`)
+- you can add multiple channels, by copying and pasting line 3, and filling in the details for each channel
 - go through steps 1-3 of https://developers.google.com/youtube/v3/getting-started
 - go to credentials page https://console.cloud.google.com/apis/credentials
 - at the top, click 'create credentials'
