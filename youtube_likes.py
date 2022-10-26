@@ -10,9 +10,35 @@ import argparse
 import json
 from os import path
 from ruamel import yaml
+import smtplib
+import email.message
+from email.mime.text import MIMEText
 
 import warnings
 warnings.simplefilter('ignore', yaml.error.UnsafeLoaderWarning)
+
+
+def send_email(
+    smtp_server,
+    smtp_port,
+    username,
+    password,
+    from_email,
+    to_email,
+    subject,
+    message,
+):
+    # msg = email.message.EmailMessage()
+    msg = MIMEText('<html><body>' + message.replace(' ', '&nbsp;').replace(
+        '\n', '<br />') + '</body></html>', 'html')
+    msg['Subject'] = subject
+    msg['From'] = from_email
+    msg['To'] = to_email
+    # msg.set_content(message)
+
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.login(username, password)
+        smtp.sendmail(from_email, to_email, msg.as_string())
 
 
 def get_persisted_for_channel(api_key, channel_id):
@@ -30,21 +56,36 @@ def get_persisted_for_channel(api_key, channel_id):
     # print(json.dumps(d, indent=2))
     persisted['num_subscriptions'] = d['items'][0]['statistics']['subscriberCount']
     # print('num_subscriptions %s')
-    res = requests.get(
-        'https://www.googleapis.com/youtube/v3/activities/?maxResults=25'
-        '&channelId={channel_id}'
-        '&part=snippet%2CcontentDetails'
-        '&key={api_key}'.format(api_key=api_key, channel_id=channel_id))
-    if res.status_code != 200:
-        print('res.status_code %s' % res.status_code)
-        print(res.content)
-    assert res.status_code == 200
-    d = json.loads(res.content.decode('utf-8'))
+
+    next_page_token = None
     videos = []
-    for item in d['items']:
-        title = item['snippet']['title']
-        video_id = item['contentDetails']['upload']['videoId']
-        videos.append({'title': title, 'video_id': video_id})
+    while True:
+        next_page_token_str = f'&pageToken={next_page_token}' if next_page_token is not None else ''
+        res = requests.get(
+            'https://www.googleapis.com/youtube/v3/activities/?maxResults=50'
+            '&channelId={channel_id}'
+            '&part=snippet%2CcontentDetails'
+            '&key={api_key}'.format(api_key=api_key, channel_id=channel_id) +
+            next_page_token_str
+        )
+        if res.status_code != 200:
+            print('res.status_code %s' % res.status_code)
+            print(res.content)
+        assert res.status_code == 200
+        d = json.loads(res.content.decode('utf-8'))
+        for item in d['items']:
+            title = item['snippet']['title']
+            print(title)
+            video_id = item['contentDetails']['upload']['videoId']
+            videos.append({'title': title, 'video_id': video_id})
+        print(d.keys())
+        print(d['pageInfo'])
+        if 'nextPageToken' in d:
+            next_page_token = d['nextPageToken']
+            print('next_page_token', next_page_token)
+        else:
+            break
+    print('finished fetching videos', len(videos))
 
     res = requests.get('https://www.googleapis.com/youtube/v3/videos/?id={video_ids}'
                        '&part=snippet%2CcontentDetails%2Cstatistics'
@@ -76,8 +117,10 @@ def get_persisted_for_channel(api_key, channel_id):
 
 def run(config_file):
     with open(config_file, 'r') as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
     # print('config', config)
+
+    email_message = ''
 
     api_key = config['api_key']
     channels = config['channels']
@@ -144,6 +187,21 @@ def run(config_file):
             print(channel_name)
             print(output_str)
             print()
+            email_message += channel_name + '\n'
+            email_message += output_str + '\n'
+            email_message += '\n'
+
+    if email_message != '' and config['send_smtp']:
+        send_email(
+            config['smtp_server'],
+            config['smtp_port'],
+            config['smtp_username'],
+            config['smtp_password'],
+            config['smtp_from_email'],
+            config['smtp_to_email'],
+            config['smtp_subject'],
+            email_message
+        )
 
     with open(config['cache_file'], 'w') as f:
         yaml.dump(persisted_all_channels, f)
