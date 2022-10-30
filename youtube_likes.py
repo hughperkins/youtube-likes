@@ -8,6 +8,7 @@
 import requests
 import argparse
 import json
+import time
 from os import path
 from ruamel import yaml
 import smtplib
@@ -75,10 +76,10 @@ def get_persisted_for_channel(api_key, channel_id):
         d = json.loads(res.content.decode('utf-8'))
         for item in d['items']:
             title = item['snippet']['title']
-            print(title)
+            # print(title)
             video_id = item['contentDetails']['upload']['videoId']
             videos.append({'title': title, 'video_id': video_id})
-        print(d.keys())
+        # print(d.keys())
         print(d['pageInfo'])
         if 'nextPageToken' in d:
             next_page_token = d['nextPageToken']
@@ -191,7 +192,27 @@ def run(config_file):
             email_message += output_str + '\n'
             email_message += '\n'
 
-    if email_message != '' and config['send_smtp']:
+    if email_message == '':
+        print('No changes detected')
+        return
+
+    has_gd = False
+    if (
+        'geometry dash' in email_message.lower() or
+        'trigonometric mash' in email_message.lower()
+    ):
+        has_gd = True
+
+    mins_since_last_write = (time.time() - path.getmtime(config['cache_file'])) / 60
+    if not has_gd and mins_since_last_write < config['min_change_interval_minutes']:
+        print('skipping, since only %.1f' % mins_since_last_write, 'mins since last write')
+        return
+
+
+    if config['send_smtp']:
+        subject = config['smtp_subject']
+        if has_gd:
+            subject += ' has gd!'
         send_email(
             config['smtp_server'],
             config['smtp_port'],
