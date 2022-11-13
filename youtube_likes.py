@@ -101,10 +101,10 @@ def get_persisted_for_channel(api_key, channel_id):
         video_id = item['id']
         title = item['snippet']['title']
         s = item['statistics']
-        likes = s['likeCount']
-        views = s['viewCount']
-        favorites = s['favoriteCount']
-        comments = s['commentCount']
+        likes = s.get('likeCount', 0)
+        views = s.get('viewCount', 0)
+        favorites = s.get('favoriteCount', 0)
+        comments = s.get('commentCount', 0)
         videos.append({
             'video_id': video_id,
             'title': title,
@@ -220,7 +220,7 @@ def run(config_file):
             config['smtp_password'],
             config['smtp_from_email'],
             config['smtp_to_email'],
-            config['smtp_subject'],
+            subject,
             email_message
         )
 
