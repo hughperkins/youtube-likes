@@ -196,7 +196,7 @@ def run(args):
                             _view_change = _new_views - _old_views
                             if _old_views == 0:
                                 is_priority = True
-                            if _view_change > _old_views // 5:
+                            if _view_change > _old_views // 10:
                                 is_priority = True
                             if _view_change >= 20:
                                 is_priority = True
