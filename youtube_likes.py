@@ -191,7 +191,13 @@ def run(args):
                         if k in ["likes", "comments"]:
                             is_priority = True
                         if k == "views":
-                            if int(video[k]) - int(old_video.get(k, "0")) >= 20:
+                            _old_views = int(old_video.get(k, "0"))
+                            _new_views = int(video[k])
+                            # more than 20 new views
+                            if _new_views - _old_views >= 20:
+                                is_priority = True
+                            # total views passed a multiple of 100
+                            if _new_views // 100 != _old_views // 100:
                                 is_priority = True
                 if output != "":
                     output_str += video["title"] + ":\n"
