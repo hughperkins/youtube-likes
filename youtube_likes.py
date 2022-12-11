@@ -190,6 +190,9 @@ def run(args):
                         output += "  %s %s => %s\n" % (k, old_video[k], video[k])
                         if k in ["likes", "comments"]:
                             is_priority = True
+                        if k == "views":
+                            if int(video[k]) - int(old_video.get(k, "0")) >= 20:
+                                is_priority = True
                 if output != "":
                     output_str += video["title"] + ":\n"
                     output_str += output[:-1] + "\n"
