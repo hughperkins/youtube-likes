@@ -193,8 +193,12 @@ def run(args):
                         if k == "views":
                             _old_views = int(old_video.get(k, "0"))
                             _new_views = int(video[k])
-                            # more than 20 new views
-                            if _new_views - _old_views >= 20:
+                            _view_change = _new_views - _old_views
+                            if _old_views == 0:
+                                is_priority = True
+                            if _view_change > _old_views // 5:
+                                is_priority = True
+                            if _view_change >= 20:
                                 is_priority = True
                             # total views passed a multiple of 100
                             if _new_views // 100 != _old_views // 100:
