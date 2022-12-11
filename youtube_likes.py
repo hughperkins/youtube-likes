@@ -116,8 +116,8 @@ def get_persisted_for_channel(api_key, channel_id):
     return persisted
 
 
-def run(config_file):
-    with open(config_file, 'r') as f:
+def run(args):
+    with open(args.config_file, 'r') as f:
         config = yaml.safe_load(f)
     # print('config', config)
 
@@ -147,6 +147,8 @@ def run(config_file):
         old_persisted_all_channels = {}
         # old_persisted = {'videos': [], 'num_subscriptions': 0}
 
+    is_priority = False
+
     for channel_name, channel_id in channel_id_by_name.items():
         # print(channel_name, channel_id)
         # print(old_persisted_all_channels[channel_id])
@@ -173,15 +175,20 @@ def run(config_file):
                     # print(json.dumps(sorted(video.items())))
                 output = ''
                 for k in video.keys():
-                    if k == 'video_id':
-                        continue
+                    # if k == 'video_id':
+                    #     continue
                     if old_video[k] != video[k]:
                         output += '  %s %s => %s\n' % (k, old_video[k], video[k])
+                        if k in ['likes', 'comments']:
+                            is_priority = True
                 if output != '':
                     output_str += video['title'] + ':\n'
                     output_str += output[:-1] + '\n'
 
         if persisted['num_subscriptions'] != old_persisted['num_subscriptions']:
+            # _old_subs = int(old_persisted.get('num_subscriptions', 0))
+            # new_subs += int(persisted['num_subscriptions']) - _old_subs
+            is_priority = True
             output_str += 'num subscriptions: %s => %s' % (
                 old_persisted['num_subscriptions'], persisted['num_subscriptions']) + '\n'
         if output_str != '':
@@ -196,20 +203,23 @@ def run(config_file):
         print('No changes detected')
         return
 
-    has_gd = False
-    if (
-        'geometry dash' in email_message.lower() or
-        'trigonometric mash' in email_message.lower()
-    ):
-        has_gd = True
+    print("is_priority", is_priority)
+
+    # is_priority = False
+    # if 'likes'
+    # if (
+    #     'geometry dash' in email_message.lower() or
+    #     'trigonometric mash' in email_message.lower()
+    # ):
+    #     is_priority = True
 
     mins_since_last_write = (time.time() - path.getmtime(config['cache_file'])) / 60
-    if not has_gd and mins_since_last_write < config['min_change_interval_minutes']:
+    if not is_priority and mins_since_last_write < config['min_change_interval_minutes']:
         print('skipping, since only %.1f' % mins_since_last_write, 'mins since last write')
         return
 
 
-    if config['send_smtp']:
+    if config['send_smtp'] and not args.no_send:
         subject = config['smtp_subject']
         if has_gd:
             subject += ' has gd!'
@@ -231,5 +241,7 @@ def run(config_file):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-file', default='config.yml', type=str)
+    parser.add_argument('--no-send', action='store_true')
     args = parser.parse_args()
-    run(**args.__dict__)
+    run(args)
+
