@@ -4,3 +4,7 @@ __pycache__
 *.swp
 config.yml
 .cache.txt
+
+gitdiff.txt
+gitlog.txt
+
