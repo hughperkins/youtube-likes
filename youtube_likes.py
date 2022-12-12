@@ -156,6 +156,8 @@ def run(args):
         # old_persisted = {'videos': [], 'num_subscriptions': 0}
 
     is_priority = False
+    priority_reasons_title = ''
+    priority_reasons_desc = ''
 
     for channel_name, channel_id in channel_id_by_name.items():
         # print(channel_name, channel_id)
@@ -174,6 +176,7 @@ def run(args):
         for video in videos:
             new_by_id[video["video_id"]] = video
         for video_id, video in new_by_id.items():
+            video_title = video["title"]
             if video_id not in old_by_id:
                 output_str += "new:\n"
                 output_str += json.dumps(video, indent=2) + "\n"
@@ -190,18 +193,32 @@ def run(args):
                         output += "  %s %s => %s\n" % (k, old_video[k], video[k])
                         if k in ["likes", "comments"]:
                             is_priority = True
+                            if k == 'likes':
+                                priority_reasons_title += ' like'
+                                priority_reasons_desc += f'- Likes change for {video_title}\n'
+                            if k == 'comments':
+                                priority_reasons_title += ' cmt'
+                                priority_reasons_desc += f'- Comments change for {video_title}\n'
                         if k == "views":
                             _old_views = int(old_video.get(k, "0"))
                             _new_views = int(video[k])
                             _view_change = _new_views - _old_views
                             if _old_views == 0:
                                 is_priority = True
+                                priority_reasons_title += ' fv'
+                                priority_reasons_desc += f'- First views for {video_title}\n'
                             if _view_change > _old_views // 10:
                                 is_priority = True
+                                priority_reasons_title += ' 10pv'
+                                priority_reasons_desc += f'- 10% view change for {video_title}\n'
                             if _view_change >= 20:
                                 is_priority = True
+                                priority_reasons_title += ' 20v'
+                                priority_reasons_desc += f'- 20 views change for {video_title}\n'
                             # total views passed a multiple of 100
                             if _new_views // 100 != _old_views // 100:
+                                priority_reasons_title += ' %100'
+                                priority_reasons_desc += f'- multiple 100 views for {video_title}\n'
                                 is_priority = True
                 if output != "":
                     output_str += video["title"] + ":\n"
@@ -211,6 +228,8 @@ def run(args):
             # _old_subs = int(old_persisted.get('num_subscriptions', 0))
             # new_subs += int(persisted['num_subscriptions']) - _old_subs
             is_priority = True
+            priority_reasons_title += ' sub'
+            priority_reasons_desc += f'- Subs change for {channel_name}\n'
             output_str += (
                 "num subscriptions: %s => %s"
                 % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
@@ -220,6 +239,8 @@ def run(args):
             print(channel_name)
             print(output_str)
             print()
+            if is_priority:
+                email_message += priority_reasons_desc + "\n"
             email_message += channel_name + "\n"
             email_message += output_str + "\n"
             email_message += "\n"
@@ -248,20 +269,24 @@ def run(args):
         )
         return
 
-    if config["send_smtp"] and not args.no_send:
+    if config["send_smtp"]:
         subject = config["smtp_subject"]
-        if has_gd:
-            subject += " has gd!"
-        send_email(
-            config["smtp_server"],
-            config["smtp_port"],
-            config["smtp_username"],
-            config["smtp_password"],
-            config["smtp_from_email"],
-            config["smtp_to_email"],
-            subject,
-            email_message,
-        )
+        if is_priority:
+            subject += priority_reasons_title
+        if not args.no_send:
+            send_email(
+                config["smtp_server"],
+                config["smtp_port"],
+                config["smtp_username"],
+                config["smtp_password"],
+                config["smtp_from_email"],
+                config["smtp_to_email"],
+                subject,
+                email_message,
+            )
+        else:
+            print("subject: " + subject)
+            print(email_message)
 
     with open(config["cache_file"], "w") as f:
         yaml.dump(persisted_all_channels, f)
