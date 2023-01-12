@@ -192,7 +192,8 @@ def run(args):
                     # if k == 'video_id':
                     #     continue
                     if old_video[k] != video[k]:
-                        output += "  %s %s => %s\n" % (k, old_video[k], video[k])
+                        change = int(video[k]) - int(old_video.get(k, '0'))
+                        output += f"  {k} +{change} ({video[k]})\n"
                         if k in ["likes", "comments"]:
                             is_priority = True
                             if k == 'likes':
