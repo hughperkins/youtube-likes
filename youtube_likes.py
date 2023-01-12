@@ -138,6 +138,7 @@ def run(args):
     channels = config["channels"]
     channel_id_by_name = {info["name"]: info["id"] for info in channels}
     channel_name_by_id = {info["id"]: info["name"] for info in channels}
+    channel_abbrev_by_id = {info["id"]: info["abbrev"] for info in channels}
 
     persisted_all_channels = {}
 
@@ -157,7 +158,6 @@ def run(args):
 
     is_priority = False
     priority_reasons_title = ''
-    priority_reasons_desc = ''
 
     for channel_name, channel_id in channel_id_by_name.items():
         # print(channel_name, channel_id)
@@ -166,6 +166,8 @@ def run(args):
         old_persisted = old_persisted_all_channels.get(
             channel_id, {"videos": [], "num_subscriptions": 0}
         )
+        _priority_reasons_title = ''
+        priority_reasons_desc = ''
         output_str = ""
         videos = persisted["videos"]
         old_videos = old_persisted["videos"]
@@ -194,42 +196,43 @@ def run(args):
                         if k in ["likes", "comments"]:
                             is_priority = True
                             if k == 'likes':
-                                priority_reasons_title += ' like'
-                                priority_reasons_desc += f'- Likes change for {video_title}\n'
+                                _priority_reasons_title += ' like'
+                                priority_reasons_desc += f'- "{video_title}": Likes change: {video["likes"]} likes\n'
                             if k == 'comments':
-                                priority_reasons_title += ' cmt'
-                                priority_reasons_desc += f'- Comments change for {video_title}\n'
+                                _priority_reasons_title += ' cmt'
+                                priority_reasons_desc += f'- "{video_title}": Comments change: {video["comments"]} comments\n'
                         if k == "views":
                             _old_views = int(old_video.get(k, "0"))
                             _new_views = int(video[k])
                             _view_change = _new_views - _old_views
                             if _old_views == 0:
                                 is_priority = True
-                                priority_reasons_title += ' fv'
-                                priority_reasons_desc += f'- First views for {video_title}\n'
+                                _priority_reasons_title += ' fv'
+                                priority_reasons_desc += f'- "{video_title}": First views: {_new_views} views\n'
                             if _view_change > _old_views // 10:
                                 is_priority = True
-                                priority_reasons_title += ' 10pv'
-                                priority_reasons_desc += f'- 10% view change for {video_title}\n'
+                                _priority_reasons_title += ' 10pv'
+                                priority_reasons_desc += f'- "{video_title}": 10% view change: {_new_views} views\n'
                             if _view_change >= 20:
                                 is_priority = True
-                                priority_reasons_title += ' 20v'
-                                priority_reasons_desc += f'- 20 views change for {video_title}\n'
+                                _priority_reasons_title += ' 20v'
+                                priority_reasons_desc += f'- "{video_title}": 20 views change: {_new_views} views\n'
                             # total views passed a multiple of 100
                             if _new_views // 100 != _old_views // 100:
-                                priority_reasons_title += ' %100'
-                                priority_reasons_desc += f'- multiple 100 views for {video_title}\n'
+                                _priority_reasons_title += ' %100'
+                                priority_reasons_desc += f'- "{video_title}": multiple 100 views: {_new_views} views\n'
                                 is_priority = True
                 if output != "":
                     output_str += video["title"] + ":\n"
                     output_str += output[:-1] + "\n"
 
+
         if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
             # _old_subs = int(old_persisted.get('num_subscriptions', 0))
             # new_subs += int(persisted['num_subscriptions']) - _old_subs
             is_priority = True
-            priority_reasons_title += ' sub'
-            priority_reasons_desc += f'- Subs change for {channel_name}\n'
+            _priority_reasons_title += ' sub'
+            priority_reasons_desc += f'- Subs {old_persisted["num_subscriptions"]} => {persisted["num_subscriptions"]}\n'
             output_str += (
                 "num subscriptions: %s => %s"
                 % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
@@ -239,25 +242,23 @@ def run(args):
             print(channel_name)
             print(output_str)
             print()
+            email_message += channel_name + "\n"
+            email_message += "=" * len(channel_name) + "\n"
+            email_message += "\n"
             if is_priority:
                 email_message += priority_reasons_desc + "\n"
-            email_message += channel_name + "\n"
             email_message += output_str + "\n"
             email_message += "\n"
+        if _priority_reasons_title != "":
+            _priority_reasons_title = _priority_reasons_title.strip()
+            abbrev = channel_abbrev_by_id[channel_id]
+            priority_reasons_title += f" {abbrev}[{_priority_reasons_title}]"
 
     if email_message == "":
         print("No changes detected")
         return
 
     print("is_priority", is_priority)
-
-    # is_priority = False
-    # if 'likes'
-    # if (
-    #     'geometry dash' in email_message.lower() or
-    #     'trigonometric mash' in email_message.lower()
-    # ):
-    #     is_priority = True
 
     mins_since_last_write = (time.time() - path.getmtime(config["cache_file"])) / 60
     if (
