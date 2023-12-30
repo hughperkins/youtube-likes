@@ -5,6 +5,7 @@
 - Click through the prompts
 => refresh token will be saved in your config.yml
 """
+import os
 from typing import Optional
 import aiohttp.web
 import argparse
@@ -26,6 +27,8 @@ async def root(request: aiohttp.web.Request):
         config['google_refresh_token'] = code
         with open(args.config_filepath, 'w') as f:
             yaml.dump(config, f)
+        print('saved to yaml')
+        os.system(f'cat {args.config_filepath}')
         return aiohttp.web.Response(text=f"<html><body>code is<br>{code}</body></html>", content_type="text/html")
     else:
         with open('html/index.html') as f:
