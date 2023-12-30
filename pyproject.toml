@@ -9,7 +9,6 @@ readme = "README.md"
 python = "^3.10"
 requests = "^2.31.0"
 ruamel-yaml = "^0.18.5"
-aiohttp = "^3.9.1"
 
 
 [tool.poetry.group.dev.dependencies]
