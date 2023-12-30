@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 # from googleapiclient.errors import HttpError
 # from googleapiclient.http import MediaIoBaseDownload
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 # from io import FileIO
 
 import requests

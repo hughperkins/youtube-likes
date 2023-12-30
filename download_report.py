@@ -5,9 +5,8 @@ Make sure to enable the analytics api inside google cloud console first
 """
 import argparse
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 from googleapiclient.http import MediaIoBaseDownload
-from google_auth_oauthlib.flow import InstalledAppFlow
 from io import FileIO
 
 

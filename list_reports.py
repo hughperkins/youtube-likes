@@ -4,10 +4,8 @@ Based on https://developers.google.com/youtube/reporting/v1/code_samples/python#
 Make sure to enable the analytics api inside google cloud console first
 """
 import argparse
-import csv
-import os
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 
 
 SCOPES = ['https://www.googleapis.com/auth/yt-analytics.readonly']

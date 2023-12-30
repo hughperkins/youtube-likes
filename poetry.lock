@@ -491,6 +491,22 @@ httplib2 = ">=0.15.0,<1.dev0"
 uritemplate = ">=3.0.1,<5"
 
 [[package]]
+name = "google-api-python-client-stubs"
+version = "1.23.0"
+description = "Type stubs for google-api-python-client"
+optional = false
+python-versions = ">=3.7,<4.0"
+files = [
+    {file = "google_api_python_client_stubs-1.23.0-py3-none-any.whl", hash = "sha256:749a1f539afea6faa9528a237ae3e07097ed3e3dec57999555f627b6f29b0b3d"},
+    {file = "google_api_python_client_stubs-1.23.0.tar.gz", hash = "sha256:216b05b4244758a16c347ad385b4cab1266168e1ed6cd28bfa193b7d33f36505"},
+]
+
+[package.dependencies]
+google-api-python-client = ">=2.107.0"
+types-httplib2 = ">=0.22.0.2"
+typing-extensions = ">=3.10.0"
+
+[[package]]
 name = "google-auth"
 version = "2.25.2"
 description = "Google Authentication Library"
@@ -1030,6 +1046,17 @@ files = [
 ]
 
 [[package]]
+name = "types-httplib2"
+version = "0.22.0.2"
+description = "Typing stubs for httplib2"
+optional = false
+python-versions = "*"
+files = [
+    {file = "types-httplib2-0.22.0.2.tar.gz", hash = "sha256:650ff0eaa6e34778cdcc14946000cdfde70f5adf015f8a1a3ddb41225606d53a"},
+    {file = "types_httplib2-0.22.0.2-py3-none-any.whl", hash = "sha256:d3fbbcf4980d9e5493a7c0bb813038a96b89516d9af44f3829aaad6c01bfdd5a"},
+]
+
+[[package]]
 name = "types-requests"
 version = "2.31.0.10"
 description = "Typing stubs for requests"
@@ -1187,4 +1214,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "7710f7d0a093d02359f8cdea3afa2bf7934a3a706d70d7abcebd70cff8ab16b5"
+content-hash = "ac9419252c8f0022f037cc9a390c2245aafd624ac7c821e5f9019776a958547a"
