@@ -6,7 +6,6 @@
 # (otherwise it won't handle non-latin characters ok)
 
 import argparse
-import email.message
 import json
 import smtplib
 import time
