@@ -10,13 +10,17 @@ python = "^3.10"
 requests = "^2.31.0"
 ruamel-yaml = "^0.18.5"
 
-
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.8.0"
 flake8 = "^6.1.0"
 black = "^23.12.1"
 isort = "^5.13.2"
+types-requests = "^2.31.0.10"
+flake8-pyproject = "^1.2.3"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.flake8]
+max-line-length = 120
