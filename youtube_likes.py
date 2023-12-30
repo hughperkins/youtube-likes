@@ -9,6 +9,7 @@ import argparse
 import json
 import smtplib
 import time
+
 # import warnings
 from email.mime.text import MIMEText
 from os import path
@@ -99,22 +100,26 @@ def get_persisted_for_channel(api_key, channel_id):
 
     page_size = 50
     num_pages = (len(video_titles_ids) + page_size - 1) // page_size
-    print('num_pages', num_pages)
+    print("num_pages", num_pages)
     videos = []
     persisted["videos"] = videos
     for page_idx in range(num_pages):
-        video_batch = video_titles_ids[page_idx * page_size: (page_idx + 1) * page_size]
+        video_batch = video_titles_ids[
+            page_idx * page_size : (page_idx + 1) * page_size
+        ]
         _url = (
             "https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
             "&part=snippet%2CcontentDetails%2Cstatistics"
             "&key={api_key}".format(
-                video_ids=",".join([v["video_id"] for v in video_batch]), api_key=api_key
-            ))
+                video_ids=",".join([v["video_id"] for v in video_batch]),
+                api_key=api_key,
+            )
+        )
         print(_url)
         res = requests.get(_url)
         if res.status_code >= 400:
             print(res.status_code)
-            print(res.content.decode('utf-8'))
+            print(res.content.decode("utf-8"))
         assert res.status_code == 200
         d = json.loads(res.content.decode("utf-8"))
         for item in d["items"]:
@@ -140,7 +145,7 @@ def get_persisted_for_channel(api_key, channel_id):
 
 def int_to_signed_str(v: int) -> str:
     if v > 0:
-        return f'+{v}'
+        return f"+{v}"
     elif v == 0:
         return "0"
     else:
@@ -177,7 +182,7 @@ def run(args):
         # old_persisted = {'videos': [], 'num_subscriptions': 0}
 
     is_priority = False
-    priority_reasons_title = ''
+    priority_reasons_title = ""
 
     for channel_name, channel_id in channel_id_by_name.items():
         # print(channel_name, channel_id)
@@ -186,8 +191,8 @@ def run(args):
         old_persisted = old_persisted_all_channels.get(
             channel_id, {"videos": [], "num_subscriptions": 0}
         )
-        _priority_reasons_title = ''
-        priority_reasons_desc = ''
+        _priority_reasons_title = ""
+        priority_reasons_desc = ""
         output_str = ""
         videos = persisted["videos"]
         old_videos = old_persisted["videos"]
@@ -210,38 +215,43 @@ def run(args):
                 output = ""
 
                 for k in video.keys():
-                    if k == 'comments' and video_title == '2 Create Unity RL env WITHOUT mlagents!' and int(video[k]) <= 2:
+                    if (
+                        k == "comments"
+                        and video_title == "2 Create Unity RL env WITHOUT mlagents!"
+                        and int(video[k]) <= 2
+                    ):
                         continue
 
                     # if k == 'video_id':
                     #     continue
                     # if _old_value != _new_value:
-                    if k not in ['likes', 'comments', 'views', 'dislikes']:
+                    if k not in ["likes", "comments", "views", "dislikes"]:
                         continue
                     _old_value = int(old_video.get(k, "0"))
                     _new_value = int(video.get(k, "0"))
                     _change = _new_value - _old_value
                     _chg_str = int_to_signed_str(_change)
-                    if old_video.get(k, '') != video[k]:
+                    if old_video.get(k, "") != video[k]:
                         output += f"  {k} {_chg_str}({_new_value})\n"
 
-                        if k in ["views", "likes", "comments"] and _new_value > _old_value:
-                            _letter = {
-                                'views': 'v',
-                                'comments': 'c',
-                                'likes': 'l'
-                            }[k]
+                        if (
+                            k in ["views", "likes", "comments"]
+                            and _new_value > _old_value
+                        ):
+                            _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
                             if _new_value // 100 != _old_value // 100:
-                                _priority_reasons_title += f' %100{_letter}'
-                                priority_reasons_desc += f'- "{video_title}" %100{_letter} ({_new_value});\n'
+                                _priority_reasons_title += f" %100{_letter}"
+                                priority_reasons_desc += (
+                                    f'- "{video_title}" %100{_letter} ({_new_value});\n'
+                                )
                                 is_priority = True
                             elif _change >= 20:
                                 is_priority = True
-                                _priority_reasons_title += f' 20{_letter}'
+                                _priority_reasons_title += f" 20{_letter}"
                                 priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
                             elif _change > _old_value // 10:
                                 is_priority = True
-                                _priority_reasons_title += f' 10p{_letter}'
+                                _priority_reasons_title += f" 10p{_letter}"
                                 priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
                             # total views passed a multiple of 100
                 if output != "":
@@ -252,7 +262,7 @@ def run(args):
             # _old_subs = int(old_persisted.get('num_subscriptions', 0))
             # new_subs += int(persisted['num_subscriptions']) - _old_subs
             is_priority = True
-            _priority_reasons_title += ' sub'
+            _priority_reasons_title += " sub"
             priority_reasons_desc += f'- Subs {old_persisted["num_subscriptions"]} => {persisted["num_subscriptions"]}\n'
             output_str += (
                 "num subscriptions: %s => %s"
