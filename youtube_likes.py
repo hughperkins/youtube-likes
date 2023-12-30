@@ -9,14 +9,17 @@ import argparse
 import json
 import smtplib
 import time
-import warnings
+# import warnings
 from email.mime.text import MIMEText
 from os import path
 
 import requests
-from ruamel import yaml
+from ruamel.yaml import YAML
 
-warnings.simplefilter("ignore", yaml.error.UnsafeLoaderWarning)
+
+yaml = YAML()
+
+# warnings.simplefilter("ignore", yaml.error.UnsafeLoaderWarning)
 
 
 def send_email(
@@ -101,7 +104,8 @@ def get_persisted_for_channel(api_key, channel_id):
     persisted["videos"] = videos
     for page_idx in range(num_pages):
         video_batch = video_titles_ids[page_idx * page_size: (page_idx + 1) * page_size]
-        _url = ("https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
+        _url = (
+            "https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
             "&part=snippet%2CcontentDetails%2Cstatistics"
             "&key={api_key}".format(
                 video_ids=",".join([v["video_id"] for v in video_batch]), api_key=api_key
@@ -145,7 +149,7 @@ def int_to_signed_str(v: int) -> str:
 
 def run(args):
     with open(args.config_file, "r") as f:
-        config = yaml.safe_load(f)
+        config = yaml.load(f)
     # print('config', config)
 
     email_message = ""
@@ -153,7 +157,7 @@ def run(args):
     api_key = config["api_key"]
     channels = config["channels"]
     channel_id_by_name = {info["name"]: info["id"] for info in channels}
-    channel_name_by_id = {info["id"]: info["name"] for info in channels}
+    # channel_name_by_id = {info["id"]: info["name"] for info in channels}
     channel_abbrev_by_id = {info["id"]: info["abbrev"] for info in channels}
 
     persisted_all_channels = {}
@@ -243,7 +247,6 @@ def run(args):
                 if output != "":
                     output_str += video["title"] + ":\n"
                     output_str += output[:-1] + "\n"
-
 
         if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
             # _old_subs = int(old_persisted.get('num_subscriptions', 0))
