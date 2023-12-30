@@ -3,15 +3,11 @@ Based on https://developers.google.com/youtube/reporting/v1/code_samples/python#
 
 Make sure to enable the analytics api inside google cloud console first
 """
-# import os
-# import google.oauth2.credentials
-# import google_auth_oauthlib.flow
 import argparse
 import csv
 import os
 from googleapiclient.discovery import build
-# from googleapiclient.errors import HttpError
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 
 
 SCOPES = ['https://www.googleapis.com/auth/yt-analytics.readonly']
@@ -52,9 +48,6 @@ if __name__ == '__main__':
     parser.add_argument('--end-date', type=str, required=True, help='yyyy-mm-dd')
     parser.add_argument('--out-csv', type=str)
     args = parser.parse_args()
-    # Disable OAuthlib's HTTPs verification when running locally.
-    # *DO NOT* leave this option enabled when running in production.
-    # os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
     youtubeAnalytics = get_service()
     execute_api_request(
