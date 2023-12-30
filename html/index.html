@@ -1,0 +1,26 @@
+<html>
+<head>
+<script type="text/javascript">
+function get_auth() {
+    console.log("get_auth()")
+    let client_id = document.getElementById('client_id').value;
+    let client_secret = document.getElementById('client_secret').value;
+
+    let scope = 'https://www.googleapis.com/auth/yt-analytics.readonly';
+    console.log("client_id " + client_id);
+    console.log("client_secret " + client_secret);
+
+    let href = `https://accounts.google.com/o/oauth2/auth?access_type=offline&approval_prompt=auto&client_id=${client_id}&response_type=code&scope=${scope}&redirect_uri=http://localhost:${location.port}`
+    console.log(href);
+
+    window.location.href = href;
+}
+
+</script>
+</head>
+    <body>
+    client_id: <input type="text" id="client_id" value="{{client_id}}" /><br />
+    client_secret: <input type="text" id="client_secret" value="{{client_secret}}" /><br />
+        <input type="button" onclick="get_auth()" value="get auth" />
+    </body>
+</html>
