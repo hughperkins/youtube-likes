@@ -64,7 +64,7 @@ def get_persisted_for_channel(api_key, channel_id):
     # print('num_subscriptions %s')
 
     next_page_token = None
-    videos = []
+    video_titles_ids = []
     while True:
         next_page_token_str = (
             f"&pageToken={next_page_token}" if next_page_token is not None else ""
@@ -83,48 +83,65 @@ def get_persisted_for_channel(api_key, channel_id):
         d = json.loads(res.content.decode("utf-8"))
         for item in d["items"]:
             title = item["snippet"]["title"]
-            # print(title)
+            if "upload" not in item["contentDetails"]:
+                continue
             video_id = item["contentDetails"]["upload"]["videoId"]
-            videos.append({"title": title, "video_id": video_id})
-        # print(d.keys())
+            video_titles_ids.append({"title": title, "video_id": video_id})
         print(d["pageInfo"])
         if "nextPageToken" in d:
             next_page_token = d["nextPageToken"]
             print("next_page_token", next_page_token)
         else:
             break
-    print("finished fetching videos", len(videos))
+    print("finished fetching video_titles_ids", len(video_titles_ids))
 
-    res = requests.get(
-        "https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
-        "&part=snippet%2CcontentDetails%2Cstatistics"
-        "&key={api_key}".format(
-            video_ids=",".join([v["video_id"] for v in videos]), api_key=api_key
-        )
-    )
-    assert res.status_code == 200
-    d = json.loads(res.content.decode("utf-8"))
+    page_size = 50
+    num_pages = (len(video_titles_ids) + page_size - 1) // page_size
+    print('num_pages', num_pages)
     videos = []
     persisted["videos"] = videos
-    for item in d["items"]:
-        video_id = item["id"]
-        title = item["snippet"]["title"]
-        s = item["statistics"]
-        likes = s.get("likeCount", 0)
-        views = s.get("viewCount", 0)
-        favorites = s.get("favoriteCount", 0)
-        comments = s.get("commentCount", 0)
-        videos.append(
-            {
-                "video_id": video_id,
-                "title": title,
-                "likes": likes,
-                "views": views,
-                "favorites": favorites,
-                "comments": comments,
-            }
-        )
+    for page_idx in range(num_pages):
+        video_batch = video_titles_ids[page_idx * page_size: (page_idx + 1) * page_size]
+        _url = ("https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
+            "&part=snippet%2CcontentDetails%2Cstatistics"
+            "&key={api_key}".format(
+                video_ids=",".join([v["video_id"] for v in video_batch]), api_key=api_key
+            ))
+        print(_url)
+        res = requests.get(_url)
+        if res.status_code >= 400:
+            print(res.status_code)
+            print(res.content.decode('utf-8'))
+        assert res.status_code == 200
+        d = json.loads(res.content.decode("utf-8"))
+        for item in d["items"]:
+            video_id = item["id"]
+            title = item["snippet"]["title"]
+            s = item["statistics"]
+            likes = s.get("likeCount", 0)
+            views = s.get("viewCount", 0)
+            favorites = s.get("favoriteCount", 0)
+            comments = s.get("commentCount", 0)
+            videos.append(
+                {
+                    "video_id": video_id,
+                    "title": title,
+                    "likes": likes,
+                    "views": views,
+                    "favorites": favorites,
+                    "comments": comments,
+                }
+            )
     return persisted
+
+
+def int_to_signed_str(v: int) -> str:
+    if v > 0:
+        return f'+{v}'
+    elif v == 0:
+        return "0"
+    else:
+        return str(v)
 
 
 def run(args):
@@ -188,41 +205,42 @@ def run(args):
                 # print(json.dumps(sorted(old_video.items())))
                 # print(json.dumps(sorted(video.items())))
                 output = ""
+
                 for k in video.keys():
+                    if k == 'comments' and video_title == '2 Create Unity RL env WITHOUT mlagents!' and int(video[k]) <= 2:
+                        continue
+
                     # if k == 'video_id':
                     #     continue
-                    if old_video[k] != video[k]:
-                        change = int(video[k]) - int(old_video.get(k, '0'))
-                        output += f"  {k} +{change} ({video[k]})\n"
-                        if k in ["likes", "comments"]:
-                            is_priority = True
-                            if k == 'likes':
-                                _priority_reasons_title += ' like'
-                                priority_reasons_desc += f'- "{video_title}": Likes change: {video["likes"]} likes\n'
-                            if k == 'comments':
-                                _priority_reasons_title += ' cmt'
-                                priority_reasons_desc += f'- "{video_title}": Comments change: {video["comments"]} comments\n'
-                        if k == "views":
-                            _old_views = int(old_video.get(k, "0"))
-                            _new_views = int(video[k])
-                            _view_change = _new_views - _old_views
-                            if _old_views == 0:
+                    # if _old_value != _new_value:
+                    if k not in ['likes', 'comments', 'views', 'dislikes']:
+                        continue
+                    _old_value = int(old_video.get(k, "0"))
+                    _new_value = int(video.get(k, "0"))
+                    _change = _new_value - _old_value
+                    _chg_str = int_to_signed_str(_change)
+                    if old_video.get(k, '') != video[k]:
+                        output += f"  {k} {_chg_str}({_new_value})\n"
+
+                        if k in ["views", "likes", "comments"] and _new_value > _old_value:
+                            _letter = {
+                                'views': 'v',
+                                'comments': 'c',
+                                'likes': 'l'
+                            }[k]
+                            if _new_value // 100 != _old_value // 100:
+                                _priority_reasons_title += f' %100{_letter}'
+                                priority_reasons_desc += f'- "{video_title}" %100{_letter} ({_new_value});\n'
                                 is_priority = True
-                                _priority_reasons_title += ' fv'
-                                priority_reasons_desc += f'- "{video_title}": First views: {_new_views} views\n'
-                            if _view_change > _old_views // 10:
+                            elif _change >= 20:
                                 is_priority = True
-                                _priority_reasons_title += ' 10pv'
-                                priority_reasons_desc += f'- "{video_title}": 10% view change: {_new_views} views\n'
-                            if _view_change >= 20:
+                                _priority_reasons_title += f' 20{_letter}'
+                                priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
+                            elif _change > _old_value // 10:
                                 is_priority = True
-                                _priority_reasons_title += ' 20v'
-                                priority_reasons_desc += f'- "{video_title}": 20 views change: {_new_views} views\n'
+                                _priority_reasons_title += f' 10p{_letter}'
+                                priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
                             # total views passed a multiple of 100
-                            if _new_views // 100 != _old_views // 100:
-                                _priority_reasons_title += ' %100'
-                                priority_reasons_desc += f'- "{video_title}": multiple 100 views: {_new_views} views\n'
-                                is_priority = True
                 if output != "":
                     output_str += video["title"] + ":\n"
                     output_str += output[:-1] + "\n"
@@ -258,6 +276,11 @@ def run(args):
     if email_message == "":
         print("No changes detected")
         return
+
+    print("priority_reasons_title", priority_reasons_title)
+
+    if args.priority:
+        is_priority = True
 
     print("is_priority", is_priority)
 
@@ -298,5 +321,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="config.yml", type=str)
     parser.add_argument("--no-send", action="store_true")
+    parser.add_argument("--priority", action="store_true")
     args = parser.parse_args()
     run(args)

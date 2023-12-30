@@ -8,3 +8,5 @@ config.yml
 gitdiff.txt
 gitlog.txt
 
+client_secret*.json
+_aws_push.sh
