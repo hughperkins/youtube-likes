@@ -1,5 +1,7 @@
 """
 Based on https://developers.google.com/youtube/reporting/v1/code_samples/python#retrieve_daily_channel_statistics
+
+Make sure to enable the analytics api inside google cloud console first
 """
 # import os
 # import google.oauth2.credentials
