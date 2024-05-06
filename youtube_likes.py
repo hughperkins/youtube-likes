@@ -296,6 +296,10 @@ def run(args):
 
     print("is_priority", is_priority)
 
+    if args.dry_run:
+        print('skipping since --dry-run')
+        return
+
     mins_since_last_write = (time.time() - path.getmtime(config["cache_file"])) / 60
     if (
         not is_priority
@@ -310,7 +314,7 @@ def run(args):
         subject = config["smtp_subject"]
         if is_priority:
             subject += priority_reasons_title
-        if not args.no_send:
+        if not args.dry_run:
             send_email(
                 config["smtp_server"],
                 config["smtp_port"],
@@ -332,7 +336,7 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="config.yml", type=str)
-    parser.add_argument("--no-send", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--priority", action="store_true")
     args = parser.parse_args()
     run(args)
