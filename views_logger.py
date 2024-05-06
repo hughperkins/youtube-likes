@@ -1,3 +1,6 @@
+# DOESNT WORK, since the stats are not updated by youtube in a timely manner (maybe once a day?)
+# use youtube_likes.py to log instead
+
 # log views once an hour, to a yaml file
 # so that we can monitor this over time, in a separate script
 import argparse
