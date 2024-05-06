@@ -6,9 +6,12 @@
 # (otherwise it won't handle non-latin characters ok)
 
 import argparse
+import datetime
 import json
+import os
 import smtplib
 import time
+from typing import Tuple
 
 # import warnings
 from email.mime.text import MIMEText
@@ -33,7 +36,6 @@ def send_email(
     subject,
     message,
 ):
-    # msg = email.message.EmailMessage()
     msg = MIMEText(
         "<html><body>"
         + message.replace(" ", "&nbsp;").replace("\n", "<br />")
@@ -43,18 +45,16 @@ def send_email(
     msg["Subject"] = subject
     msg["From"] = from_email
     msg["To"] = to_email
-    # msg.set_content(message)
 
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.login(username, password)
         smtp.sendmail(from_email, to_email, msg.as_string())
 
 
-def get_persisted_for_channel(api_key, channel_id):
-    persisted = {}
+def get_uploads_playlist_id_and_subscribers(api_key: str, channel_id: str) -> Tuple[str, int]:
     res = requests.get(
         "https://www.googleapis.com/youtube/v3/channels/?id={channel_id}"
-        "&part=statistics"
+        "&part=statistics,contentDetails"
         "&key={api_key}".format(channel_id=channel_id, api_key=api_key)
     )
     if res.status_code != 200:
@@ -62,47 +62,64 @@ def get_persisted_for_channel(api_key, channel_id):
         print(res.content)
         raise Exception("invalid status code %s" % res.status_code)
     d = json.loads(res.content.decode("utf-8"))
-    # print(json.dumps(d, indent=2))
-    persisted["num_subscriptions"] = d["items"][0]["statistics"]["subscriberCount"]
-    # print('num_subscriptions %s')
+    item = d['items'][0]
+    uploads_playlist_id = item['contentDetails']['relatedPlaylists']['uploads']
+    print('uploads_playlist_id', uploads_playlist_id)
+    num_subscriptions = item["statistics"]["subscriberCount"]
+    return uploads_playlist_id, num_subscriptions
+
+
+def get_persisted_for_channel(api_key, channel_id):
+    persisted = {}
+
+    uploads_playlist_id, persisted["num_subscriptions"] = get_uploads_playlist_id_and_subscribers(
+        api_key=api_key, channel_id=channel_id
+    )
+    print('uploads_playlist_lid', uploads_playlist_id)
 
     next_page_token = None
     video_titles_ids = []
+    num_pages = 0
     while True:
+        print('page', num_pages)
         next_page_token_str = (
             f"&pageToken={next_page_token}" if next_page_token is not None else ""
         )
         res = requests.get(
-            "https://www.googleapis.com/youtube/v3/activities/?maxResults=50"
-            "&channelId={channel_id}"
+            "https://www.googleapis.com/youtube/v3/playlistItems/?maxResults=50"
+            f"&playlistId={uploads_playlist_id}"
+            f"&channelId={channel_id}"
             "&part=snippet%2CcontentDetails"
-            "&key={api_key}".format(api_key=api_key, channel_id=channel_id)
-            + next_page_token_str
+            f"&key={api_key}"
+            f"{next_page_token_str}"
         )
         if res.status_code != 200:
             print("res.status_code %s" % res.status_code)
             print(res.content)
         assert res.status_code == 200
         d = json.loads(res.content.decode("utf-8"))
+        print('len(d[items])', len(d["items"]))
         for item in d["items"]:
             title = item["snippet"]["title"]
-            if "upload" not in item["contentDetails"]:
-                continue
-            video_id = item["contentDetails"]["upload"]["videoId"]
+            print(json.dumps(item, indent=2))
+            print('  ', title)
+            video_id = item["contentDetails"]["videoId"]
             video_titles_ids.append({"title": title, "video_id": video_id})
         print(d["pageInfo"])
+        num_pages += 1
         if "nextPageToken" in d:
             next_page_token = d["nextPageToken"]
-            print("next_page_token", next_page_token)
         else:
             break
     print("finished fetching video_titles_ids", len(video_titles_ids))
+    print('len(video_titles_ids)', len(video_titles_ids))
 
     page_size = 50
-    num_pages = (len(video_titles_ids) + page_size - 1) // page_size
     print("num_pages", num_pages)
     videos = []
     persisted["videos"] = videos
+    total_views = 0
+    total_likes = 0
     for page_idx in range(num_pages):
         video_batch = video_titles_ids[
             page_idx * page_size : (page_idx + 1) * page_size
@@ -128,6 +145,9 @@ def get_persisted_for_channel(api_key, channel_id):
             s = item["statistics"]
             likes = s.get("likeCount", 0)
             views = s.get("viewCount", 0)
+            total_views += int(views)
+            total_likes += int(likes)
+            print(title, "views", views, "total_views", total_views)
             favorites = s.get("favoriteCount", 0)
             comments = s.get("commentCount", 0)
             videos.append(
@@ -140,6 +160,8 @@ def get_persisted_for_channel(api_key, channel_id):
                     "comments": comments,
                 }
             )
+    persisted["total_views"] = total_views
+    persisted["total_likes"] = total_likes
     return persisted
 
 
@@ -155,38 +177,46 @@ def int_to_signed_str(v: int) -> str:
 def run(args):
     with open(args.config_file, "r") as f:
         config = yaml.load(f)
-    # print('config', config)
 
     email_message = ""
 
     api_key = config["api_key"]
     channels = config["channels"]
     channel_id_by_name = {info["name"]: info["id"] for info in channels}
-    # channel_name_by_id = {info["id"]: info["name"] for info in channels}
     channel_abbrev_by_id = {info["id"]: info["abbrev"] for info in channels}
 
     persisted_all_channels = {}
 
     for channel_name, channel_id in channel_id_by_name.items():
+        channel_abbrev = channel_abbrev_by_id[channel_id]
         persisted = get_persisted_for_channel(api_key=api_key, channel_id=channel_id)
         persisted_all_channels[channel_id] = persisted
-    # print(yaml.dump(videos))
-    # print(json.dumps(videos, indent=2))
-    # print(json.dumps(videos, indent=2))
+
+        view_logfile = path.expanduser(config['views_log_filepath_templ'].format(channel_abbrev=channel_abbrev))
+        view_dir = path.dirname(view_logfile)
+        if not path.exists(view_dir):
+            os.makedirs(view_dir)
+        dt = datetime.datetime.now()
+        dt_string = dt.strftime("%Y%m%d-%H%M")
+        res = {
+            "subs": persisted["num_subscriptions"],
+            "views": persisted["total_views"],
+            "likes": persisted["total_likes"],
+            "dt": dt_string
+        }
+        with open(view_logfile, 'a') as f:
+            f.write("- " + json.dumps(res) + "\n")
+
     if path.isfile(config["cache_file"]):
         with open(config["cache_file"], "r") as f:
             old_persisted_all_channels = yaml.load(f)
     else:
-        # old_stats = []
         old_persisted_all_channels = {}
-        # old_persisted = {'videos': [], 'num_subscriptions': 0}
 
     is_priority = False
     priority_reasons_title = ""
 
     for channel_name, channel_id in channel_id_by_name.items():
-        # print(channel_name, channel_id)
-        # print(old_persisted_all_channels[channel_id])
         persisted = persisted_all_channels[channel_id]
         old_persisted = old_persisted_all_channels.get(
             channel_id, {"videos": [], "num_subscriptions": 0}
@@ -209,9 +239,6 @@ def run(args):
                 output_str += json.dumps(video, indent=2) + "\n"
             else:
                 old_video = old_by_id[video_id]
-                # if json.dumps(old_video) != json.dumps(video):
-                # print(json.dumps(sorted(old_video.items())))
-                # print(json.dumps(sorted(video.items())))
                 output = ""
 
                 for k in video.keys():
@@ -222,9 +249,6 @@ def run(args):
                     ):
                         continue
 
-                    # if k == 'video_id':
-                    #     continue
-                    # if _old_value != _new_value:
                     if k not in ["likes", "comments", "views", "dislikes"]:
                         continue
                     _old_value = int(old_video.get(k, "0"))
@@ -259,8 +283,6 @@ def run(args):
                     output_str += output[:-1] + "\n"
 
         if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
-            # _old_subs = int(old_persisted.get('num_subscriptions', 0))
-            # new_subs += int(persisted['num_subscriptions']) - _old_subs
             is_priority = True
             _priority_reasons_title += " sub"
             priority_reasons_desc += f'- Subs {old_persisted["num_subscriptions"]} => {persisted["num_subscriptions"]}\n'
