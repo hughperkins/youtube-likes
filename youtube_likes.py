@@ -233,7 +233,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
                 print('is_priority')
                 is_priority = True
                 priority_reasons_title += f" DV{d_hours}"
-                priority_reasons_desc += f"- Delta views pct {d_hours}h over {g_delta_views_threshold_pct_by_delta_hours[d_hours]}: {d_views_diff_pct:.0f}\n"
+                priority_reasons_desc += f"- Delta views pct {d_hours}h over {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
             if d_views_diff_pct > 0:
                 output_str += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
