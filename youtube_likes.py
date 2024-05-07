@@ -18,7 +18,7 @@ from os import path
 
 from ruamel.yaml import YAML
 
-from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib
+from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib, string_lib
 
 
 yaml = YAML()
@@ -106,15 +106,6 @@ def get_stats_for_channel(config: Dict[str, Any], api_key: str, channel_id: str,
     return persisted
 
 
-def int_to_signed_str(v: int) -> str:
-    if v > 0:
-        return f"+{v}"
-    elif v == 0:
-        return "0"
-    else:
-        return str(v)
-
-
 def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: Dict[str, Any]):
     channels = config["channels"]
     channel_name_by_id = {info["id"]: info["name"] for info in channels}
@@ -186,7 +177,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
                 _old_value = int(old_video.get(k, "0"))
                 _new_value = int(video.get(k, "0"))
                 _change = _new_value - _old_value
-                _chg_str = int_to_signed_str(_change)
+                _chg_str = string_lib.int_to_signed_str(_change)
                 if old_video.get(k, "") != video[k]:
                     output += f"  {k} {_chg_str}({_new_value})\n"
 
