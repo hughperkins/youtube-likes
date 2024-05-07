@@ -8,10 +8,11 @@
 import argparse
 import datetime
 import json
+import math
 import os
 import smtplib
 import time
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 # import warnings
 from email.mime.text import MIMEText
@@ -65,7 +66,7 @@ def get_uploads_playlist_id_and_subscribers(api_key: str, channel_id: str) -> Tu
     item = d['items'][0]
     uploads_playlist_id = item['contentDetails']['relatedPlaylists']['uploads']
     print('uploads_playlist_id', uploads_playlist_id)
-    num_subscriptions = item["statistics"]["subscriberCount"]
+    num_subscriptions = int(item["statistics"]["subscriberCount"])
     return uploads_playlist_id, num_subscriptions
 
 
@@ -170,13 +171,13 @@ def get_persisted_for_channel(api_key, channel_id):
         video_id = video["id"]
         title = video["snippet"]["title"]
         s = video["statistics"]
-        likes = s.get("likeCount", 0)
-        views = s.get("viewCount", 0)
-        total_views += int(views)
-        total_likes += int(likes)
+        likes = int(s.get("likeCount", 0))
+        views = int(s.get("viewCount", 0))
+        total_views += views
+        total_likes += likes
         print(f"- {title} views {views} total_views {total_views}")
-        favorites = s.get("favoriteCount", 0)
-        comments = s.get("commentCount", 0)
+        favorites = int(s.get("favoriteCount", 0))
+        comments = int(s.get("commentCount", 0))
         video_infos.append(
             {
                 "video_id": video_id,
@@ -202,18 +203,155 @@ def int_to_signed_str(v: int) -> str:
         return str(v)
 
 
+def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: Dict[str, Any]):
+    channels = config["channels"]
+    channel_name_by_id = {info["id"]: info["name"] for info in channels}
+    channel_name = channel_name_by_id[channel_id]
+
+    print('')
+    print('============================================================')
+    persisted = get_persisted_for_channel(api_key=api_key, channel_id=channel_id)
+    print(channel_abbrev)
+    print(channel_name)
+    print('')
+
+    view_logfile = path.expanduser(config['views_log_filepath_templ'].format(channel_abbrev=channel_abbrev))
+    view_dir = path.dirname(view_logfile)
+    if not path.exists(view_dir):
+        os.makedirs(view_dir)
+    dt = datetime.datetime.now()
+    dt_string = dt.strftime("%Y%m%d-%H%M")
+    res = {
+        "subs": persisted["num_subscriptions"],
+        "views": persisted["total_views"],
+        "likes": persisted["total_likes"],
+        "dt": dt_string
+    }
+    with open(view_logfile, 'a') as f:
+        f.write("- " + json.dumps(res) + "\n")
+
+    cache_file_path_templ = config["cache_file_path_templ"]
+    cache_file_path = path.expanduser(cache_file_path_templ.format(abbrev=channel_abbrev))
+    if path.isfile(cache_file_path):
+        with open(cache_file_path, "r") as f:
+            old_persisted = yaml.load(f)
+    else:
+        old_persisted = {"videos": [], "num_subscriptions": 0}
+
+    is_priority = False
+
+    priority_reasons_title = ""
+    priority_reasons_desc = ""
+    output_str = ""
+    videos = persisted["videos"]
+    old_videos = old_persisted["videos"]
+    old_by_id = {}
+    for video in old_videos:
+        old_by_id[video["video_id"]] = video
+    new_by_id = {}
+    for video in videos:
+        new_by_id[video["video_id"]] = video
+    for video_id, video in new_by_id.items():
+        video_title = video["title"]
+        if video_id not in old_by_id:
+            output_str += "new:\n"
+            output_str += json.dumps(video, indent=2) + "\n"
+        else:
+            old_video = old_by_id[video_id]
+            output = ""
+
+            for k in video.keys():
+                if (
+                    k == "comments"
+                    and video_title == "2 Create Unity RL env WITHOUT mlagents!"
+                    and int(video[k]) <= 2
+                ):
+                    continue
+
+                if k not in ["likes", "comments", "views", "dislikes"]:
+                    continue
+                _old_value = int(old_video.get(k, "0"))
+                _new_value = int(video.get(k, "0"))
+                _change = _new_value - _old_value
+                _chg_str = int_to_signed_str(_change)
+                if old_video.get(k, "") != video[k]:
+                    output += f"  {k} {_chg_str}({_new_value})\n"
+
+                    if (
+                        k in ["views", "likes", "comments"]
+                        and _new_value > _old_value
+                    ):
+                        _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
+                        if _new_value // 100 != _old_value // 100:
+                            priority_reasons_title += f" %100{_letter}"
+                            priority_reasons_desc += (
+                                f'- "{video_title}" %100{_letter} ({_new_value});\n'
+                            )
+                            is_priority = True
+                        elif _change >= 20:
+                            is_priority = True
+                            priority_reasons_title += f" 20{_letter}"
+                            priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
+                        elif _change > _old_value // 10:
+                            is_priority = True
+                            priority_reasons_title += f" 10p{_letter}"
+                            priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
+                        # total views passed a multiple of 100
+            if output != "":
+                output_str += video["title"] + ":\n"
+                output_str += output[:-1] + "\n"
+
+    if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
+        is_priority = True
+        priority_reasons_title += " sub"
+        priority_reasons_desc += f'- Subs {old_persisted["num_subscriptions"]} => {persisted["num_subscriptions"]}\n'
+        output_str += (
+            "num subscriptions: %s => %s"
+            % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
+            + "\n"
+        )
+    email_message = ""
+    if output_str != "":
+        print(channel_name)
+        print(output_str)
+        print()
+        email_message += channel_name + "\n"
+        email_message += "=" * len(channel_name) + "\n"
+        email_message += "\n"
+        if is_priority:
+            email_message += priority_reasons_desc + "\n"
+        email_message += output_str + "\n"
+        email_message += "\n"
+    if priority_reasons_title != "":
+        priority_reasons_title = priority_reasons_title.strip()
+        priority_reasons_title = f" {channel_abbrev}[{priority_reasons_title}]"
+
+    if path.exists(cache_file_path):
+        mins_since_last_write = (time.time() - path.getmtime(cache_file_path)) / 60
+    else:
+        mins_since_last_write = math.inf
+
+    return {
+        "is_priority": is_priority,
+        "priority_reasons_title": priority_reasons_title,
+        "priority_reasons_desc": priority_reasons_desc,
+        "email_message": email_message,
+        "persisted": persisted,
+        "cache_file_path": cache_file_path,
+        "mins_since_last_write": mins_since_last_write,
+    }
+
+
 def run(args):
     with open(args.config_file, "r") as f:
         config = yaml.load(f)
-
-    email_message = ""
 
     api_key = config["api_key"]
     channels = config["channels"]
     channel_id_by_name = {info["name"]: info["id"] for info in channels}
     channel_abbrev_by_id = {info["id"]: info["abbrev"] for info in channels}
 
-    persisted_all_channels = {}
+    results = []
 
     for channel_name, channel_id in channel_id_by_name.items():
         channel_abbrev = channel_abbrev_by_id[channel_id]
@@ -222,185 +360,65 @@ def run(args):
             if channel_abbrev.lower() != args.abbrev.lower():
                 continue
 
-        print('')
-        print('============================================================')
-        persisted = get_persisted_for_channel(api_key=api_key, channel_id=channel_id)
-        persisted_all_channels[channel_id] = persisted
-        print(channel_abbrev)
-        print(channel_name)
-        print('')
+        res = process_channel(channel_id=channel_id, channel_abbrev=channel_abbrev, api_key=api_key, config=config)
+        results.append(res)
 
-        view_logfile = path.expanduser(config['views_log_filepath_templ'].format(channel_abbrev=channel_abbrev))
-        view_dir = path.dirname(view_logfile)
-        if not path.exists(view_dir):
-            os.makedirs(view_dir)
-        dt = datetime.datetime.now()
-        dt_string = dt.strftime("%Y%m%d-%H%M")
-        res = {
-            "subs": persisted["num_subscriptions"],
-            "views": persisted["total_views"],
-            "likes": persisted["total_likes"],
-            "dt": dt_string
-        }
-        with open(view_logfile, 'a') as f:
-            f.write("- " + json.dumps(res) + "\n")
+    global_email_message = "\n".join([res["email_message"] for res in results])
 
-    if path.isfile(config["cache_file"]):
-        with open(config["cache_file"], "r") as f:
-            old_persisted_all_channels = yaml.load(f)
-    else:
-        old_persisted_all_channels = {}
-
-    is_priority = False
-    priority_reasons_title = ""
-
-    for channel_name, channel_id in channel_id_by_name.items():
-        if args.abbrev is not None:
-            abbrev = channel_abbrev_by_id[channel_id]
-            if abbrev.lower() != args.abbrev.lower():
-                continue
-        persisted = persisted_all_channels[channel_id]
-        old_persisted = old_persisted_all_channels.get(
-            channel_id, {"videos": [], "num_subscriptions": 0}
-        )
-        _priority_reasons_title = ""
-        priority_reasons_desc = ""
-        output_str = ""
-        videos = persisted["videos"]
-        old_videos = old_persisted["videos"]
-        old_by_id = {}
-        for video in old_videos:
-            old_by_id[video["video_id"]] = video
-        new_by_id = {}
-        for video in videos:
-            new_by_id[video["video_id"]] = video
-        for video_id, video in new_by_id.items():
-            video_title = video["title"]
-            if video_id not in old_by_id:
-                output_str += "new:\n"
-                output_str += json.dumps(video, indent=2) + "\n"
-            else:
-                old_video = old_by_id[video_id]
-                output = ""
-
-                for k in video.keys():
-                    if (
-                        k == "comments"
-                        and video_title == "2 Create Unity RL env WITHOUT mlagents!"
-                        and int(video[k]) <= 2
-                    ):
-                        continue
-
-                    if k not in ["likes", "comments", "views", "dislikes"]:
-                        continue
-                    _old_value = int(old_video.get(k, "0"))
-                    _new_value = int(video.get(k, "0"))
-                    _change = _new_value - _old_value
-                    _chg_str = int_to_signed_str(_change)
-                    if old_video.get(k, "") != video[k]:
-                        output += f"  {k} {_chg_str}({_new_value})\n"
-
-                        if (
-                            k in ["views", "likes", "comments"]
-                            and _new_value > _old_value
-                        ):
-                            _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
-                            if _new_value // 100 != _old_value // 100:
-                                _priority_reasons_title += f" %100{_letter}"
-                                priority_reasons_desc += (
-                                    f'- "{video_title}" %100{_letter} ({_new_value});\n'
-                                )
-                                is_priority = True
-                            elif _change >= 20:
-                                is_priority = True
-                                _priority_reasons_title += f" 20{_letter}"
-                                priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
-                            elif _change > _old_value // 10:
-                                is_priority = True
-                                _priority_reasons_title += f" 10p{_letter}"
-                                priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
-                            # total views passed a multiple of 100
-                if output != "":
-                    output_str += video["title"] + ":\n"
-                    output_str += output[:-1] + "\n"
-
-        if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
-            is_priority = True
-            _priority_reasons_title += " sub"
-            priority_reasons_desc += f'- Subs {old_persisted["num_subscriptions"]} => {persisted["num_subscriptions"]}\n'
-            output_str += (
-                "num subscriptions: %s => %s"
-                % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
-                + "\n"
-            )
-        if output_str != "":
-            print(channel_name)
-            print(output_str)
-            print()
-            email_message += channel_name + "\n"
-            email_message += "=" * len(channel_name) + "\n"
-            email_message += "\n"
-            if is_priority:
-                email_message += priority_reasons_desc + "\n"
-            email_message += output_str + "\n"
-            email_message += "\n"
-        if _priority_reasons_title != "":
-            _priority_reasons_title = _priority_reasons_title.strip()
-            abbrev = channel_abbrev_by_id[channel_id]
-            priority_reasons_title += f" {abbrev}[{_priority_reasons_title}]"
-
-    if email_message == "":
+    if global_email_message == "":
         print("No changes detected")
         return
-
-    print("priority_reasons_title", priority_reasons_title)
-
+    
+    global_is_priority = any([res["is_priority"] for res in results])
     if args.priority:
-        is_priority = True
+        global_is_priority = True
+    print("global_priority", global_is_priority)
 
-    print("is_priority", is_priority)
+    global_priority_reasons_title = " ".join([res["priority_reasons_title"] for res in results])
+    print("Subject: ", global_priority_reasons_title)
 
-    if args.dry_run:
-        print('skipping since --dry-run')
-        return
+    print(global_email_message)
 
-    mins_since_last_write = (time.time() - path.getmtime(config["cache_file"])) / 60
+    global_mins_since_last_write = max([res["mins_since_last_write"] for res in results])
+    print('global_mins_since_last_write', global_mins_since_last_write)
     if (
-        not is_priority
-        and mins_since_last_write < config["min_change_interval_minutes"]
+        not global_is_priority
+        and global_mins_since_last_write < config["min_change_interval_minutes"]
     ):
         print(
-            "skipping, since only %.1f" % mins_since_last_write, "mins since last write"
+            "skipping, since only %.1f" % global_mins_since_last_write, "mins since last write"
         )
         return
 
-    if config["send_smtp"]:
+    if config["send_smtp"] and not args.no_send_email:
         subject = config["smtp_subject"]
-        if is_priority:
-            subject += priority_reasons_title
-        if not args.dry_run:
-            send_email(
-                config["smtp_server"],
-                config["smtp_port"],
-                config["smtp_username"],
-                config["smtp_password"],
-                config["smtp_from_email"],
-                config["smtp_to_email"],
-                subject,
-                email_message,
-            )
-        else:
-            print("subject: " + subject)
-            print(email_message)
+        if global_is_priority:
+            subject += global_priority_reasons_title
+        send_email(
+            config["smtp_server"],
+            config["smtp_port"],
+            config["smtp_username"],
+            config["smtp_password"],
+            config["smtp_from_email"],
+            config["smtp_to_email"],
+            subject,
+            global_email_message,
+        )
 
-    with open(config["cache_file"], "w") as f:
-        yaml.dump(persisted_all_channels, f)
+    if not args.no_update_cache:
+        for res in results:
+            cache_dir = path.dirname(res["cache_file_path"])
+            if not path.exists(cache_dir):
+                os.makedirs(cache_dir)
+            with open(res["cache_file_path"], "w") as f:
+                yaml.dump(res["persisted"], f)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="config.yml", type=str)
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-send-email", action="store_true")
+    parser.add_argument("--no-update-cache", action="store_true")
     parser.add_argument("--abbrev", help="process only this abbrev")
     parser.add_argument("--priority", action="store_true")
     args = parser.parse_args()
