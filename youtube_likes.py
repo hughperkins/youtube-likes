@@ -214,7 +214,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
             + "\n"
         )
-    
+
     for d_hours in [8, 24, 48]:
         print(f'checking changes h_hours {d_hours}')
         _delta_key = f"delta{d_hours}"
