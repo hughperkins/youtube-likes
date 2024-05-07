@@ -316,54 +316,17 @@ def run(args):
 
     global_email_message = ""
     global_priority_reasons_title = ""
+    global_email_message_l = []
     for res in results:
         _body = res["body"]
         if res["body"] != "":
-            # _channel_name = res["channel_name"]
-            # _is_priority = res["is_priority"]
-            # _priority_reasons_desc = res["priority_reasons_desc"]
             _priority_reasons_title = res["priority_reasons_title"]
-            # print(_channel_name)
-            # print(_body)
-            # print()
-            # global_email_message += _channel_name + "\n"
-            # global_email_message += "=" * len(_channel_name) + "\n"
-            # global_email_message += "\n"
-            # if _is_priority:
-            #     global_email_message += _priority_reasons_desc + "\n"
-            global_email_message += _body
+            global_email_message_l.append(_body)
             if _priority_reasons_title != "":
                 _priority_reasons_title = _priority_reasons_title.strip()
                 global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
+    global_email_message = "\n".join(global_email_message_l)
  
-    # global_email_message = ""
-    # global_priority_reasons_title = ""
-    # for res in results:
-    #         global_email_message += _channel_name + "\n"
-    #         global_email_message += "=" * len(_channel_name) + "\n"
-    #         global_email_message += "\n"
-
-    # for res in results:
-    #     _body = res["body"]
-    #     if res["body"] != "":
-    #         _channel_name = res["channel_name"]
-    #         _is_priority = res["is_priority"]
-    #         _priority_reasons_desc = res["priority_reasons_desc"]
-    #         _priority_reasons_title = res["priority_reasons_title"]
-    #         # print(_channel_name)
-    #         # print(_body)
-    #         # print()
-    #         global_email_message += _channel_name + "\n"
-    #         global_email_message += "=" * len(_channel_name) + "\n"
-    #         global_email_message += "\n"
-    #         if _is_priority:
-    #             global_email_message += _priority_reasons_desc + "\n"
-    #         global_email_message += _body + "\n"
-    #         global_email_message += "\n"
-    #         if _priority_reasons_title != "":
-    #             _priority_reasons_title = _priority_reasons_title.strip()
-    #             global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
-
     if global_email_message == "":
         print("No changes detected")
         return
