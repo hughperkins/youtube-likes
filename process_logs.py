@@ -9,14 +9,8 @@ from os.path import expanduser as expand
 yaml = YAML()
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--abbrev", default="RL")
-    parser.add_argument("--hours-delta", type=int, default=12)
-    parser.add_argument("--view-logs-file-templ", default=expand("~/views_logs/views_log_{abbrev}.yaml"))
-    args = parser.parse_args()
-
-    yaml_filepath = args.view_logs_file_templ.format(abbrev=args.abbrev)
+def get_delta_stats(hours_delta: float, view_logs_file_templ: str, abbrev: str):
+    yaml_filepath = view_logs_file_templ.format(abbrev=abbrev)
     with open(yaml_filepath, "r") as f:
         stats = yaml.load(f)
     # print(json.dumps(stats, indent=2))
@@ -29,34 +23,34 @@ def main():
             continue
         stat["dt"] = dt
         stat["hours_old"] = hours_old
-        stat["delta"] = abs(hours_old - args.hours_delta)
+        stat["delta"] = abs(hours_old - hours_delta)
         new_stats.append(stat)
     stats = new_stats
     new_stat = stats[-1]
 
-    # print("")
-    # for stat in stats:
-    #     print(stat)
-
-    # print("")
     stats.sort(key=lambda stat: stat["delta"])
     old_stat = stats[0]
-    # print(old_stat)
-    # print(new_stat)
     d_hours = (new_stat["dt"] - old_stat["dt"]).total_seconds() / 3600
-    # print('d_hours', d_hours)
     d_views = new_stat["views"] - old_stat["views"]
     d_likes = new_stat["likes"] - old_stat["likes"]
     print("d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
 
-    d_views = d_views * args.hours_delta / d_hours
-    d_likes = d_likes * args.hours_delta / d_hours
-    print("d_hours %.1f" % args.hours_delta, "d_views", d_views, "d_likes", d_likes)
+    d_views = d_views * hours_delta / d_hours
+    d_likes = d_likes * hours_delta / d_hours
+    print("d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
 
-    # best_
-    # for stat in stats:
-    #     print(stat)
-    # print(json.dumps(stats, indent=2))
+    return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--abbrev", default="RL")
+    parser.add_argument("--hours-delta", type=int, default=12)
+    parser.add_argument("--view-logs-file-templ", default=expand("~/views_logs/views_log_{abbrev}.yaml"))
+    args = parser.parse_args()
+
+    stats = get_delta_stats(hours_delta=args.hours_delta, view_logs_file_templ=args.view_logs_file_templ, abbrev=args.abbrev)
+    print(stats)
 
 
 if __name__ == '__main__':
