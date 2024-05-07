@@ -263,7 +263,7 @@ def run(args):
 
     results = []
 
-    for channel_name, channel_id in channel_id_by_name.items():
+    for _, channel_id in channel_id_by_name.items():
         channel_abbrev = channel_abbrev_by_id[channel_id]
 
         if args.abbrev is not None:
