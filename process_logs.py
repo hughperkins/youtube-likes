@@ -9,8 +9,8 @@ from os.path import expanduser as expand
 yaml = YAML()
 
 
-def get_delta_stats(hours_delta: float, view_logs_file_templ: str, abbrev: str):
-    yaml_filepath = view_logs_file_templ.format(abbrev=abbrev)
+def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str):
+    yaml_filepath = expand(views_log_filepath_templ.format(abbrev=abbrev))
     with open(yaml_filepath, "r") as f:
         stats = yaml.load(f)
     new_stats = []
@@ -32,11 +32,11 @@ def get_delta_stats(hours_delta: float, view_logs_file_templ: str, abbrev: str):
     d_hours = (new_stat["dt"] - old_stat["dt"]).total_seconds() / 3600
     d_views = new_stat["views"] - old_stat["views"]
     d_likes = new_stat["likes"] - old_stat["likes"]
-    print("d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
+    print("    d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
 
     d_views = d_views * hours_delta / d_hours
     d_likes = d_likes * hours_delta / d_hours
-    print("d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
+    print("    d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
 
     return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
 
@@ -45,10 +45,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--abbrev", default="RL")
     parser.add_argument("--hours-delta", type=int, default=12)
-    parser.add_argument("--view-logs-file-templ", default=expand("~/views_logs/views_log_{abbrev}.yaml"))
+    parser.add_argument("--views-logs-file-templ", default=expand("~/views_logs/views_log_{abbrev}.yaml"))
     args = parser.parse_args()
 
-    stats = get_delta_stats(hours_delta=args.hours_delta, view_logs_file_templ=args.view_logs_file_templ, abbrev=args.abbrev)
+    stats = get_delta_stats(
+        hours_delta=args.hours_delta, views_log_filepath_templ=args.view_logs_file_templ, abbrev=args.abbrev)
     print(stats)
 
 
