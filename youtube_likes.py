@@ -10,18 +10,16 @@ import datetime
 import json
 import math
 import os
-import smtplib
 import time
 from typing import Any, Dict, List, Tuple
 
 # import warnings
-from email.mime.text import MIMEText
 from os import path
 
 import requests
 from ruamel.yaml import YAML
 
-import process_logs
+from youtube_likes_lib import process_logs, email_send_lib
 
 
 yaml = YAML()
@@ -34,31 +32,6 @@ g_delta_views_threshold_pct_by_delta_hours = {
     24: 20,
     48: 10,
 }
-
-
-def send_email(
-    smtp_server,
-    smtp_port,
-    username,
-    password,
-    from_email,
-    to_email,
-    subject,
-    message,
-):
-    msg = MIMEText(
-        "<html><body>"
-        + message.replace(" ", "&nbsp;").replace("\n", "<br />")
-        + "</body></html>",
-        "html",
-    )
-    msg["Subject"] = subject
-    msg["From"] = from_email
-    msg["To"] = to_email
-
-    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
-        smtp.login(username, password)
-        smtp.sendmail(from_email, to_email, msg.as_string())
 
 
 def get_uploads_playlist_id_and_subscribers(api_key: str, channel_id: str) -> Tuple[str, int]:
@@ -439,7 +412,7 @@ def run(args):
         subject = config["smtp_subject"]
         if global_is_priority:
             subject += global_priority_reasons_title
-        send_email(
+        email_send_lib.send_email(
             config["smtp_server"],
             config["smtp_port"],
             config["smtp_username"],
