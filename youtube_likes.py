@@ -21,10 +21,19 @@ from os import path
 import requests
 from ruamel.yaml import YAML
 
+import process_logs
+
 
 yaml = YAML()
 
 # warnings.simplefilter("ignore", yaml.error.UnsafeLoaderWarning)
+
+
+g_delta_views_threshold_pct_by_delta_hours = {
+    8: 40,
+    24: 20,
+    48: 10,
+}
 
 
 def send_email(
@@ -130,7 +139,7 @@ def get_videos(api_key: str, video_ids: List[str]):
     return videos
 
 
-def get_persisted_for_channel(api_key, channel_id):
+def get_stats_for_channel(config: Dict[str, Any], api_key: str, channel_id: str, channel_abbrev: str) -> Dict[str, Any]:
     persisted = {}
 
     uploads_playlist_id, persisted["num_subscriptions"] = get_uploads_playlist_id_and_subscribers(
@@ -190,6 +199,14 @@ def get_persisted_for_channel(api_key, channel_id):
         )
     persisted["total_views"] = total_views
     persisted["total_likes"] = total_likes
+    for d_hours in [8, 24, 48]:
+        _res = process_logs.get_delta_stats(
+            hours_delta=d_hours,
+            views_log_filepath_templ=config["views_log_filepath_templ"],
+            abbrev=channel_abbrev,
+        )
+        print(_res)
+        persisted[f"delta{d_hours}"] = _res
     print('total_views', total_views, 'total_likes', total_likes)
     return persisted
 
@@ -210,12 +227,13 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
 
     print('')
     print('============================================================')
-    persisted = get_persisted_for_channel(api_key=api_key, channel_id=channel_id)
+    persisted = get_stats_for_channel(
+        config=config, api_key=api_key, channel_id=channel_id, channel_abbrev=channel_abbrev)
     print(channel_abbrev)
     print(channel_name)
     print('')
 
-    view_logfile = path.expanduser(config['views_log_filepath_templ'].format(channel_abbrev=channel_abbrev))
+    view_logfile = path.expanduser(config['views_log_filepath_templ'].format(abbrev=channel_abbrev))
     view_dir = path.dirname(view_logfile)
     if not path.exists(view_dir):
         os.makedirs(view_dir)
@@ -310,21 +328,25 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             % (old_persisted["num_subscriptions"], persisted["num_subscriptions"])
             + "\n"
         )
-    email_message = ""
-    if output_str != "":
-        print(channel_name)
-        print(output_str)
-        print()
-        email_message += channel_name + "\n"
-        email_message += "=" * len(channel_name) + "\n"
-        email_message += "\n"
-        if is_priority:
-            email_message += priority_reasons_desc + "\n"
-        email_message += output_str + "\n"
-        email_message += "\n"
-    if priority_reasons_title != "":
-        priority_reasons_title = priority_reasons_title.strip()
-        priority_reasons_title = f" {channel_abbrev}[{priority_reasons_title}]"
+    
+    for d_hours in [8, 24, 48]:
+        print(f'checking changes h_hours {d_hours}')
+        _delta_key = f"delta{d_hours}"
+        print(f'_delta_key {_delta_key}')
+        if _delta_key in old_persisted and _delta_key in persisted:
+            print(f'{_delta_key} in both old and new')
+            old_d_views = old_persisted[_delta_key]["d_views"]
+            new_d_views = persisted[_delta_key]["d_views"]
+            d_views_diff = new_d_views - old_d_views
+            print(f'd_views_diff {d_views_diff}')
+            d_views_diff_pct = d_views_diff / persisted[_delta_key]["d_views"] * 100
+            print(f'd_views_diff_pct {d_views_diff_pct}')
+            if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours]:
+                print('is_priority')
+                is_priority = True
+                priority_reasons_title += f" DV{d_hours}"
+                priority_reasons_desc += f"- Delta views pct {d_hours}h over {g_delta_views_threshold_pct_by_delta_hours[d_hours]}: {d_views_diff_pct}\n"
+                output_str += f"- Delta views pct {d_hours}h: {old_d_views} => {new_d_views}\n"
 
     if path.exists(cache_file_path):
         mins_since_last_write = (time.time() - path.getmtime(cache_file_path)) / 60
@@ -332,10 +354,12 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
         mins_since_last_write = math.inf
 
     return {
+        "channel_name": channel_name,
+        "channel_abbrev": channel_abbrev,
         "is_priority": is_priority,
         "priority_reasons_title": priority_reasons_title,
         "priority_reasons_desc": priority_reasons_desc,
-        "email_message": email_message,
+        "body": output_str,
         "persisted": persisted,
         "cache_file_path": cache_file_path,
         "mins_since_last_write": mins_since_last_write,
@@ -363,7 +387,28 @@ def run(args):
         res = process_channel(channel_id=channel_id, channel_abbrev=channel_abbrev, api_key=api_key, config=config)
         results.append(res)
 
-    global_email_message = "\n".join([res["email_message"] for res in results])
+    global_email_message = ""
+    global_priority_reasons_title = ""
+    for res in results:
+        _body = res["body"]
+        if res["body"] != "":
+            _channel_name = res["channel_name"]
+            _is_priority = res["is_priority"]
+            _priority_reasons_desc = res["priority_reasons_desc"]
+            _priority_reasons_title = res["priority_reasons_title"]
+            print(_channel_name)
+            print(_body)
+            print()
+            global_email_message += _channel_name + "\n"
+            global_email_message += "=" * len(_channel_name) + "\n"
+            global_email_message += "\n"
+            if _is_priority:
+                global_email_message += _priority_reasons_desc + "\n"
+            global_email_message += _body + "\n"
+            global_email_message += "\n"
+            if _priority_reasons_title != "":
+                _priority_reasons_title = _priority_reasons_title.strip()
+                global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
 
     if global_email_message == "":
         print("No changes detected")
