@@ -13,7 +13,6 @@ def get_delta_stats(hours_delta: float, view_logs_file_templ: str, abbrev: str):
     yaml_filepath = view_logs_file_templ.format(abbrev=abbrev)
     with open(yaml_filepath, "r") as f:
         stats = yaml.load(f)
-    # print(json.dumps(stats, indent=2))
     new_stats = []
     for stat in stats:
         dt = datetime.datetime.strptime(stat["dt"], "%Y%m%d-%H%M")
