@@ -11,7 +11,7 @@ import json
 import os
 import smtplib
 import time
-from typing import Tuple
+from typing import List, Tuple
 
 # import warnings
 from email.mime.text import MIMEText
@@ -69,16 +69,13 @@ def get_uploads_playlist_id_and_subscribers(api_key: str, channel_id: str) -> Tu
     return uploads_playlist_id, num_subscriptions
 
 
-def get_persisted_for_channel(api_key, channel_id):
-    persisted = {}
-
-    uploads_playlist_id, persisted["num_subscriptions"] = get_uploads_playlist_id_and_subscribers(
-        api_key=api_key, channel_id=channel_id
-    )
-    print('uploads_playlist_lid', uploads_playlist_id)
-
+def get_playlist_items(
+    api_key: str,
+    channel_id: str,
+    uploads_playlist_id: str,      
+):
     next_page_token = None
-    video_titles_ids = []
+    items = []
     num_pages = 0
     while True:
         print('page', num_pages)
@@ -99,36 +96,32 @@ def get_persisted_for_channel(api_key, channel_id):
         assert res.status_code == 200
         d = json.loads(res.content.decode("utf-8"))
         print('len(d[items])', len(d["items"]))
-        for item in d["items"]:
-            title = item["snippet"]["title"]
-            print(json.dumps(item, indent=2))
-            print('  ', title)
-            video_id = item["contentDetails"]["videoId"]
-            video_titles_ids.append({"title": title, "video_id": video_id})
-        print(d["pageInfo"])
+        items += d["items"]
+        # for i in d["items"]:
+        #     if "algo" in i["snippet"]["title"].lower() or "perlin" in i["snippet"]["title"].lower():
+        #         items.append(i)
         num_pages += 1
         if "nextPageToken" in d:
             next_page_token = d["nextPageToken"]
         else:
             break
-    print("finished fetching video_titles_ids", len(video_titles_ids))
-    print('len(video_titles_ids)', len(video_titles_ids))
+    return items
 
+
+def get_videos(api_key: str, video_ids: List[str]):
     page_size = 50
+    num_pages = (len(video_ids) + 50 - 1) // 50
     print("num_pages", num_pages)
     videos = []
-    persisted["videos"] = videos
-    total_views = 0
-    total_likes = 0
     for page_idx in range(num_pages):
-        video_batch = video_titles_ids[
+        video_batch = video_ids[
             page_idx * page_size : (page_idx + 1) * page_size
         ]
         _url = (
             "https://www.googleapis.com/youtube/v3/videos/?id={video_ids}"
             "&part=snippet%2CcontentDetails%2Cstatistics"
             "&key={api_key}".format(
-                video_ids=",".join([v["video_id"] for v in video_batch]),
+                video_ids=",".join(video_batch),
                 api_key=api_key,
             )
         )
@@ -139,29 +132,69 @@ def get_persisted_for_channel(api_key, channel_id):
             print(res.content.decode("utf-8"))
         assert res.status_code == 200
         d = json.loads(res.content.decode("utf-8"))
-        for item in d["items"]:
-            video_id = item["id"]
-            title = item["snippet"]["title"]
-            s = item["statistics"]
-            likes = s.get("likeCount", 0)
-            views = s.get("viewCount", 0)
-            total_views += int(views)
-            total_likes += int(likes)
-            print(title, "views", views, "total_views", total_views)
-            favorites = s.get("favoriteCount", 0)
-            comments = s.get("commentCount", 0)
-            videos.append(
-                {
-                    "video_id": video_id,
-                    "title": title,
-                    "likes": likes,
-                    "views": views,
-                    "favorites": favorites,
-                    "comments": comments,
-                }
-            )
+        videos += d["items"]
+    return videos
+
+
+def get_persisted_for_channel(api_key, channel_id):
+    persisted = {}
+
+    uploads_playlist_id, persisted["num_subscriptions"] = get_uploads_playlist_id_and_subscribers(
+        api_key=api_key, channel_id=channel_id
+    )
+    print('uploads_playlist_lid', uploads_playlist_id)
+
+    play_list_items = get_playlist_items(channel_id=channel_id, api_key=api_key, uploads_playlist_id=uploads_playlist_id)
+    print('len(play_list_items)', len(play_list_items))
+    video_titles_ids = []
+    for item in play_list_items:
+        title = item["snippet"]["title"]
+        print('  ', title)
+        video_id = item["contentDetails"]["videoId"]
+        video_titles_ids.append({"title": title, "video_id": video_id})
+
+    print("finished fetching video_titles_ids", len(video_titles_ids))
+    print('len(video_titles_ids)', len(video_titles_ids))
+
+    video_ids = [v["video_id"] for v in video_titles_ids]
+
+    videos = get_videos(
+        api_key=api_key,
+        video_ids=video_ids,
+    )
+
+    video_infos = []
+    persisted["videos"] = video_infos
+    total_views = 0
+    total_likes = 0
+    for video in videos:
+        # print(json.dumps(video, indent=2))
+        if "tags" in video["snippet"] and "short" in video["snippet"]["tags"]:
+            print("skip short", video["snippet"]["title"])
+            continue
+        video_id = video["id"]
+        title = video["snippet"]["title"]
+        s = video["statistics"]
+        likes = s.get("likeCount", 0)
+        views = s.get("viewCount", 0)
+        total_views += int(views)
+        total_likes += int(likes)
+        print(title, "views", views, "total_views", total_views)
+        favorites = s.get("favoriteCount", 0)
+        comments = s.get("commentCount", 0)
+        video_infos.append(
+            {
+                "video_id": video_id,
+                "title": title,
+                "likes": likes,
+                "views": views,
+                "favorites": favorites,
+                "comments": comments,
+            }
+        )
     persisted["total_views"] = total_views
     persisted["total_likes"] = total_likes
+    print('total_views', total_views, 'total_likes', total_likes)
     return persisted
 
 
