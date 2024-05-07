@@ -78,7 +78,6 @@ def get_playlist_items(
     items = []
     num_pages = 0
     while True:
-        print('page', num_pages)
         next_page_token_str = (
             f"&pageToken={next_page_token}" if next_page_token is not None else ""
         )
@@ -95,11 +94,7 @@ def get_playlist_items(
             print(res.content)
         assert res.status_code == 200
         d = json.loads(res.content.decode("utf-8"))
-        print('len(d[items])', len(d["items"]))
         items += d["items"]
-        # for i in d["items"]:
-        #     if "algo" in i["snippet"]["title"].lower() or "perlin" in i["snippet"]["title"].lower():
-        #         items.append(i)
         num_pages += 1
         if "nextPageToken" in d:
             next_page_token = d["nextPageToken"]
@@ -111,7 +106,6 @@ def get_playlist_items(
 def get_videos(api_key: str, video_ids: List[str]):
     page_size = 50
     num_pages = (len(video_ids) + 50 - 1) // 50
-    print("num_pages", num_pages)
     videos = []
     for page_idx in range(num_pages):
         video_batch = video_ids[
@@ -125,7 +119,6 @@ def get_videos(api_key: str, video_ids: List[str]):
                 api_key=api_key,
             )
         )
-        print(_url)
         res = requests.get(_url)
         if res.status_code >= 400:
             print(res.status_code)
@@ -147,9 +140,10 @@ def get_persisted_for_channel(api_key, channel_id):
     play_list_items = get_playlist_items(channel_id=channel_id, api_key=api_key, uploads_playlist_id=uploads_playlist_id)
     print('len(play_list_items)', len(play_list_items))
     video_titles_ids = []
+    print("titles:")
     for item in play_list_items:
         title = item["snippet"]["title"]
-        print('  ', title)
+        print('- ', title)
         video_id = item["contentDetails"]["videoId"]
         video_titles_ids.append({"title": title, "video_id": video_id})
 
@@ -163,14 +157,15 @@ def get_persisted_for_channel(api_key, channel_id):
         video_ids=video_ids,
     )
 
+    print('')
+    print('Get stats for each video:')
     video_infos = []
     persisted["videos"] = video_infos
     total_views = 0
     total_likes = 0
     for video in videos:
-        # print(json.dumps(video, indent=2))
-        if "tags" in video["snippet"] and "short" in video["snippet"]["tags"]:
-            print("skip short", video["snippet"]["title"])
+        if "short" in video["snippet"].get("tags", []):
+            print(f"- [skip short \"{video['snippet']['title']}\"]")
             continue
         video_id = video["id"]
         title = video["snippet"]["title"]
@@ -179,7 +174,7 @@ def get_persisted_for_channel(api_key, channel_id):
         views = s.get("viewCount", 0)
         total_views += int(views)
         total_likes += int(likes)
-        print(title, "views", views, "total_views", total_views)
+        print(f"- {title} views {views} total_views {total_views}")
         favorites = s.get("favoriteCount", 0)
         comments = s.get("commentCount", 0)
         video_infos.append(
@@ -222,8 +217,18 @@ def run(args):
 
     for channel_name, channel_id in channel_id_by_name.items():
         channel_abbrev = channel_abbrev_by_id[channel_id]
+
+        if args.abbrev is not None:
+            if channel_abbrev.lower() != args.abbrev.lower():
+                continue
+
+        print('')
+        print('============================================================')
         persisted = get_persisted_for_channel(api_key=api_key, channel_id=channel_id)
         persisted_all_channels[channel_id] = persisted
+        print(channel_abbrev)
+        print(channel_name)
+        print('')
 
         view_logfile = path.expanduser(config['views_log_filepath_templ'].format(channel_abbrev=channel_abbrev))
         view_dir = path.dirname(view_logfile)
@@ -250,6 +255,10 @@ def run(args):
     priority_reasons_title = ""
 
     for channel_name, channel_id in channel_id_by_name.items():
+        if args.abbrev is not None:
+            abbrev = channel_abbrev_by_id[channel_id]
+            if abbrev.lower() != args.abbrev.lower():
+                continue
         persisted = persisted_all_channels[channel_id]
         old_persisted = old_persisted_all_channels.get(
             channel_id, {"videos": [], "num_subscriptions": 0}
@@ -392,6 +401,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="config.yml", type=str)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--abbrev", help="process only this abbrev")
     parser.add_argument("--priority", action="store_true")
     args = parser.parse_args()
     run(args)
