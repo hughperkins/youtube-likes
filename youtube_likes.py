@@ -225,7 +225,9 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             new_d_views = persisted[_delta_key]["d_views"]
             d_views_diff = new_d_views - old_d_views
             print(f'd_views_diff {d_views_diff:.0f}')
-            d_views_diff_pct = d_views_diff / persisted[_delta_key]["d_views"] * 100
+            d_views_diff_pct = 0
+            if persisted[_delta_key]["d_views"] > 0:
+                d_views_diff_pct = d_views_diff / persisted[_delta_key]["d_views"] * 100
             print(f'd_views_diff_pct {d_views_diff_pct:.0f}')
             if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours]:
                 print('is_priority')
