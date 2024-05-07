@@ -106,6 +106,59 @@ def get_stats_for_channel(config: Dict[str, Any], api_key: str, channel_id: str,
     return persisted
 
 
+def analyse_video(old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[str, Any]:
+    body = ""
+    priority_reasons_title = ""
+    priority_reasons_desc = ""
+    is_priority = False
+
+    video_title = new_video["title"]
+
+    for k in new_video.keys():
+        if (
+            k == "comments"
+            and video_title == "2 Create Unity RL env WITHOUT mlagents!"
+            and int(new_video[k]) <= 2
+        ):
+            continue
+
+        if k not in ["likes", "comments", "views", "dislikes"]:
+            continue
+        _old_value = int(old_video.get(k, "0"))
+        _new_value = int(new_video.get(k, "0"))
+        _change = _new_value - _old_value
+        _chg_str = string_lib.int_to_signed_str(_change)
+        if old_video.get(k, "") != new_video[k]:
+            body += f"  {k} {_chg_str}({_new_value})\n"
+
+            if (
+                k in ["views", "likes", "comments"]
+                and _new_value > _old_value
+            ):
+                _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
+                if _new_value // 100 != _old_value // 100:
+                    priority_reasons_title += f" %100{_letter}"
+                    priority_reasons_desc += (
+                        f'- "{video_title}" %100{_letter} ({_new_value});\n'
+                    )
+                    is_priority = True
+                elif _change >= 20:
+                    is_priority = True
+                    priority_reasons_title += f" 20{_letter}"
+                    priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
+                elif _change > _old_value // 10:
+                    is_priority = True
+                    priority_reasons_title += f" 10p{_letter}"
+                    priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
+                # total views passed a multiple of 100
+    return {
+        "body": body,
+        "priority_reasons_desc": priority_reasons_desc,
+        "priority_reasons_title": priority_reasons_title,
+        "is_priority": is_priority,
+    }
+
+
 def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: Dict[str, Any]):
     channels = config["channels"]
     channel_name_by_id = {info["id"]: info["name"] for info in channels}
@@ -156,54 +209,19 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
     for video in videos:
         new_by_id[video["video_id"]] = video
     for video_id, video in new_by_id.items():
-        video_title = video["title"]
         if video_id not in old_by_id:
             output_str += "new:\n"
             output_str += json.dumps(video, indent=2) + "\n"
         else:
             old_video = old_by_id[video_id]
-            output = ""
-
-            for k in video.keys():
-                if (
-                    k == "comments"
-                    and video_title == "2 Create Unity RL env WITHOUT mlagents!"
-                    and int(video[k]) <= 2
-                ):
-                    continue
-
-                if k not in ["likes", "comments", "views", "dislikes"]:
-                    continue
-                _old_value = int(old_video.get(k, "0"))
-                _new_value = int(video.get(k, "0"))
-                _change = _new_value - _old_value
-                _chg_str = string_lib.int_to_signed_str(_change)
-                if old_video.get(k, "") != video[k]:
-                    output += f"  {k} {_chg_str}({_new_value})\n"
-
-                    if (
-                        k in ["views", "likes", "comments"]
-                        and _new_value > _old_value
-                    ):
-                        _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
-                        if _new_value // 100 != _old_value // 100:
-                            priority_reasons_title += f" %100{_letter}"
-                            priority_reasons_desc += (
-                                f'- "{video_title}" %100{_letter} ({_new_value});\n'
-                            )
-                            is_priority = True
-                        elif _change >= 20:
-                            is_priority = True
-                            priority_reasons_title += f" 20{_letter}"
-                            priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
-                        elif _change > _old_value // 10:
-                            is_priority = True
-                            priority_reasons_title += f" 10p{_letter}"
-                            priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
-                        # total views passed a multiple of 100
-            if output != "":
+            analysis = analyse_video(new_video=video, old_video=old_video)
+            _body = analysis["body"]
+            if _body != "":
                 output_str += video["title"] + ":\n"
-                output_str += output[:-1] + "\n"
+                output_str += _body[:-1] + "\n"
+            priority_reasons_title += analysis["priority_reasons_title"]
+            priority_reasons_desc += analysis["priority_reasons_desc"]
+            is_priority = is_priority or analysis["is_priority"]
 
     if persisted["num_subscriptions"] != old_persisted["num_subscriptions"]:
         is_priority = True
