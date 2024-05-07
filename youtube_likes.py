@@ -129,7 +129,7 @@ def analyse_video(old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[
         _change = _new_value - _old_value
         _chg_str = string_lib.int_to_signed_str(_change)
         if old_video.get(k, "") != new_video[k]:
-            body += f"  {k} {_chg_str}({_new_value})\n"
+            body += f"  {k} {_chg_str} => {_new_value}\n"
 
             if (
                 k in ["views", "likes", "comments"]
@@ -139,17 +139,17 @@ def analyse_video(old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[
                 if _new_value // 100 != _old_value // 100:
                     priority_reasons_title += f" %100{_letter}"
                     priority_reasons_desc += (
-                        f'- "{video_title}" %100{_letter} ({_new_value});\n'
+                        f'- "{video_title}" %100{_letter}: {_new_value};\n'
                     )
                     is_priority = True
                 elif _change >= 20:
                     is_priority = True
                     priority_reasons_title += f" 20{_letter}"
-                    priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str}({_new_value});\n'
+                    priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str} => {_new_value};\n'
                 elif _change > _old_value // 10:
                     is_priority = True
                     priority_reasons_title += f" 10p{_letter}"
-                    priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str}({_new_value});\n'
+                    priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str} => {_new_value};\n'
                 # total views passed a multiple of 100
     return {
         "body": body,
@@ -216,8 +216,9 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             old_video = old_by_id[video_id]
             analysis = analyse_video(new_video=video, old_video=old_video)
             _body = analysis["body"]
-            if _body != "":
+            if _body.strip() != "":
                 output_str += video["title"] + ":\n"
+                print(f'_body [{_body}]')
                 output_str += _body[:-1] + "\n"
             priority_reasons_title += analysis["priority_reasons_title"]
             priority_reasons_desc += analysis["priority_reasons_desc"]
@@ -251,7 +252,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
                 print('is_priority')
                 is_priority = True
                 priority_reasons_title += f" DV{d_hours}"
-                priority_reasons_desc += f"- Delta views pct {d_hours}h over {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
+                priority_reasons_desc += f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
             if d_views_diff_pct > 0:
                 output_str += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
@@ -259,6 +260,24 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
         mins_since_last_write = (time.time() - path.getmtime(cache_file_path)) / 60
     else:
         mins_since_last_write = math.inf
+    
+    print(f'output_str [{output_str}]')
+
+    email_message = ""
+    if output_str != "":
+        email_message += channel_name + "\n"
+        email_message += "=" * len(channel_name) + "\n"
+        email_message += "\n"
+        if is_priority:
+            email_message += "Priority changes:\n"
+            email_message += priority_reasons_desc
+            email_message += "\n"
+        email_message += "Details:\n"
+        email_message += output_str
+        # email_message += "\n"
+    if priority_reasons_title != "":
+        priority_reasons_title = priority_reasons_title.strip()
+        priority_reasons_title = f" {channel_abbrev}[{priority_reasons_title}]"
 
     return {
         "channel_name": channel_name,
@@ -266,7 +285,8 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
         "is_priority": is_priority,
         "priority_reasons_title": priority_reasons_title,
         "priority_reasons_desc": priority_reasons_desc,
-        "body": output_str,
+        # "body": output_str,
+        "body": email_message,
         "persisted": persisted,
         "cache_file_path": cache_file_path,
         "mins_since_last_write": mins_since_last_write,
@@ -299,37 +319,66 @@ def run(args):
     for res in results:
         _body = res["body"]
         if res["body"] != "":
-            _channel_name = res["channel_name"]
-            _is_priority = res["is_priority"]
-            _priority_reasons_desc = res["priority_reasons_desc"]
+            # _channel_name = res["channel_name"]
+            # _is_priority = res["is_priority"]
+            # _priority_reasons_desc = res["priority_reasons_desc"]
             _priority_reasons_title = res["priority_reasons_title"]
-            print(_channel_name)
-            print(_body)
-            print()
-            global_email_message += _channel_name + "\n"
-            global_email_message += "=" * len(_channel_name) + "\n"
-            global_email_message += "\n"
-            if _is_priority:
-                global_email_message += _priority_reasons_desc + "\n"
-            global_email_message += _body + "\n"
-            global_email_message += "\n"
+            # print(_channel_name)
+            # print(_body)
+            # print()
+            # global_email_message += _channel_name + "\n"
+            # global_email_message += "=" * len(_channel_name) + "\n"
+            # global_email_message += "\n"
+            # if _is_priority:
+            #     global_email_message += _priority_reasons_desc + "\n"
+            global_email_message += _body
             if _priority_reasons_title != "":
                 _priority_reasons_title = _priority_reasons_title.strip()
                 global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
+ 
+    # global_email_message = ""
+    # global_priority_reasons_title = ""
+    # for res in results:
+    #         global_email_message += _channel_name + "\n"
+    #         global_email_message += "=" * len(_channel_name) + "\n"
+    #         global_email_message += "\n"
+
+    # for res in results:
+    #     _body = res["body"]
+    #     if res["body"] != "":
+    #         _channel_name = res["channel_name"]
+    #         _is_priority = res["is_priority"]
+    #         _priority_reasons_desc = res["priority_reasons_desc"]
+    #         _priority_reasons_title = res["priority_reasons_title"]
+    #         # print(_channel_name)
+    #         # print(_body)
+    #         # print()
+    #         global_email_message += _channel_name + "\n"
+    #         global_email_message += "=" * len(_channel_name) + "\n"
+    #         global_email_message += "\n"
+    #         if _is_priority:
+    #             global_email_message += _priority_reasons_desc + "\n"
+    #         global_email_message += _body + "\n"
+    #         global_email_message += "\n"
+    #         if _priority_reasons_title != "":
+    #             _priority_reasons_title = _priority_reasons_title.strip()
+    #             global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
 
     if global_email_message == "":
         print("No changes detected")
         return
-    
+
     global_is_priority = any([res["is_priority"] for res in results])
     if args.priority:
         global_is_priority = True
     print("global_priority", global_is_priority)
 
     global_priority_reasons_title = " ".join([res["priority_reasons_title"] for res in results])
+    print('')
     print("Subject: ", global_priority_reasons_title)
-
+    print('')
     print(global_email_message)
+    print('(end of email)')
 
     global_mins_since_last_write = max([res["mins_since_last_write"] for res in results])
     print('global_mins_since_last_write', global_mins_since_last_write)
