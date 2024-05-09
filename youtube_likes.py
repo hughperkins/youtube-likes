@@ -234,33 +234,34 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             + "\n"
         )
 
-    for d_hours in [8, 24, 48]:
-        print(f'checking changes h_hours {d_hours}')
-        _delta_key = f"delta{d_hours}"
-        print(f'_delta_key {_delta_key}')
-        if _delta_key in old_persisted and _delta_key in persisted:
-            print(f'{_delta_key} in both old and new')
-            old_d_views = old_persisted[_delta_key]["d_views"]
-            new_d_views = persisted[_delta_key]["d_views"]
-            d_views_diff = new_d_views - old_d_views
-            print(f'd_views_diff {d_views_diff:.0f}')
-            d_views_diff_pct = 0
-            if persisted[_delta_key]["d_views"] > 0:
-                d_views_diff_pct = d_views_diff / persisted[_delta_key]["d_views"] * 100
-            print(f'd_views_diff_pct {d_views_diff_pct:.0f}')
-            if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours]:
-                print('is_priority')
-                is_priority = True
-                priority_reasons_title += f" DV{d_hours}"
-                priority_reasons_desc += f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
-            if d_views_diff_pct > 0:
-                output_str += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
+    if channel_abbrev in ['RL']:
+        for d_hours in [8, 24, 48]:
+            print(f'checking changes h_hours {d_hours}')
+            _delta_key = f"delta{d_hours}"
+            print(f'_delta_key {_delta_key}')
+            if _delta_key in old_persisted and _delta_key in persisted:
+                print(f'{_delta_key} in both old and new')
+                old_d_views = old_persisted[_delta_key]["d_views"]
+                new_d_views = persisted[_delta_key]["d_views"]
+                d_views_diff = new_d_views - old_d_views
+                print(f'd_views_diff {d_views_diff:.0f}')
+                d_views_diff_pct = 0
+                if persisted[_delta_key]["d_views"] > 0:
+                    d_views_diff_pct = d_views_diff / persisted[_delta_key]["d_views"] * 100
+                print(f'd_views_diff_pct {d_views_diff_pct:.0f}')
+                if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours]:
+                    print('is_priority')
+                    is_priority = True
+                    priority_reasons_title += f" DV{d_hours}"
+                    priority_reasons_desc += f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
+                if d_views_diff_pct > 0:
+                    output_str += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
     if path.exists(cache_file_path):
         mins_since_last_write = (time.time() - path.getmtime(cache_file_path)) / 60
     else:
         mins_since_last_write = math.inf
-    
+
     print(f'output_str [{output_str}]')
 
     email_message = ""
@@ -326,7 +327,7 @@ def run(args):
                 _priority_reasons_title = _priority_reasons_title.strip()
                 global_priority_reasons_title += f" {channel_abbrev}[{_priority_reasons_title}]"
     global_email_message = "\n".join(global_email_message_l)
- 
+
     if global_email_message == "":
         print("No changes detected")
         return
