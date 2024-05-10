@@ -10,3 +10,5 @@ gitlog.txt
 
 client_secret*.json
 _aws_push.sh
+
+*.ipynb
