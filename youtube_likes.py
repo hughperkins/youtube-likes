@@ -136,7 +136,7 @@ def analyse_video(channel_abbrev: str, old_video: Dict[str, Any], new_video: Dic
                 and _new_value > _old_value
             ):
                 _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
-                if _new_value // 100 != _old_value // 100 and channel_abbrev not in ['RL']:
+                if (_new_value // 100 != _old_value // 100) and channel_abbrev not in ['RL']:
                     priority_reasons_title += f" %100{_letter}"
                     priority_reasons_desc += (
                         f'- "{video_title}" %100{_letter}: {_new_value};\n'
@@ -345,7 +345,7 @@ def run(args):
     print('(end of email)')
 
     global_mins_since_last_write = max([res["mins_since_last_write"] for res in results])
-    print('global_mins_since_last_write', global_mins_since_last_write)
+    print(f'global_mins_since_last_write {global_mins_since_last_write:.1f}')
     if (
         not global_is_priority
         and global_mins_since_last_write < config["min_change_interval_minutes"]
@@ -372,11 +372,13 @@ def run(args):
 
     if not args.no_update_cache:
         for res in results:
-            cache_dir = path.dirname(res["cache_file_path"])
+            filepath = res["cache_file_path"]
+            cache_dir = path.dirname(filepath)
             if not path.exists(cache_dir):
                 os.makedirs(cache_dir)
-            with open(res["cache_file_path"], "w") as f:
+            with open(filepath, "w") as f:
                 yaml.dump(res["persisted"], f)
+                print(f' wrote {filepath}')
 
 
 if __name__ == "__main__":
