@@ -106,7 +106,7 @@ def get_stats_for_channel(config: Dict[str, Any], api_key: str, channel_id: str,
     return persisted
 
 
-def analyse_video(old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[str, Any]:
+def analyse_video(channel_abbrev: str, old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[str, Any]:
     body = ""
     priority_reasons_title = ""
     priority_reasons_desc = ""
@@ -136,13 +136,13 @@ def analyse_video(old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[
                 and _new_value > _old_value
             ):
                 _letter = {"views": "v", "comments": "c", "likes": "l"}[k]
-                if _new_value // 100 != _old_value // 100:
+                if _new_value // 100 != _old_value // 100 and channel_abbrev not in ['RL']:
                     priority_reasons_title += f" %100{_letter}"
                     priority_reasons_desc += (
                         f'- "{video_title}" %100{_letter}: {_new_value};\n'
                     )
                     is_priority = True
-                elif _change >= 20:
+                elif _change >= 20 and channel_abbrev not in ['RL']:
                     is_priority = True
                     priority_reasons_title += f" 20{_letter}"
                     priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str} => {_new_value};\n'
@@ -214,7 +214,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
             output_str += json.dumps(video, indent=2) + "\n"
         else:
             old_video = old_by_id[video_id]
-            analysis = analyse_video(new_video=video, old_video=old_video)
+            analysis = analyse_video(channel_abbrev=channel_abbrev, new_video=video, old_video=old_video)
             _body = analysis["body"]
             if _body.strip() != "":
                 output_str += video["title"] + ":\n"
