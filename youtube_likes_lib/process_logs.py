@@ -34,8 +34,13 @@ def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: s
     d_likes = new_stat["likes"] - old_stat["likes"]
     print("    d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
 
-    d_views = d_views * hours_delta / d_hours
-    d_likes = d_likes * hours_delta / d_hours
+    if d_hours > 0:
+        d_views = d_views * hours_delta / d_hours
+        d_likes = d_likes * hours_delta / d_hours
+    else:
+        print('warning: d_hours is 0')
+        d_views = 0
+        d_likes = 0
     print("    d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
 
     return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
