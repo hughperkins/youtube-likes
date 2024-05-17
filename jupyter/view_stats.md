@@ -240,11 +240,13 @@ def plot_graph(metric_name, max_days_old, aggreg_over: int = 1):
     if aggreg_over >= 1:
         title += ' delta'
     plt.title(title)
+    plt.ylim([0, max(y)])
     plt.show()
 
-max_days_old = 14
-impressions_agg = 4
-views_agg = 8
+max_days_old = 140
+impressions_agg = 1
+views_agg = 1
+ctr_agg = 1
 
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, -1)
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, impressions_agg)
@@ -254,13 +256,35 @@ plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS_VTR', max_days_old, -1)
 plot_graph('VIEWS', max_days_old, -1)
 plot_graph('VIEWS', max_days_old, views_agg)
 
-views_data = get_data('VIEWS', max_days_old, aggreg_over=8)
-impressions_data = get_data('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, aggreg_over=8)
+views_data = get_data('VIEWS', max_days_old, aggreg_over=ctr_agg)
+impressions_data = get_data('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, aggreg_over=ctr_agg)
 print(len(views_data[0]), len(impressions_data[0]))
 ctr = [views_data[1][n] / impressions_data[1][n] * 100 for n in range(len(views_data[0]))]
 # print(ctr)
 plt.plot(views_data[0], ctr)
 plt.title('click through rate')
+plt.ylim([0, max(ctr)])
 plt.show()
 
+```
+
+```python
+%matplotlib inline
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+for rp in [0.01, 1, 100, int(80e9/101e6)]:
+    X = np.arange(1000, 20000, 500)
+    """
+    ionization energies:
+    - hydrogen: 13.6
+    - carbon dioxide: 13.8
+    - nitrogen: 18
+    """
+    Y = np.sqrt(2/2.7e25/rp/math.pow(4.3e-9, 3)*np.exp(-13.6*1.6e-19/1.38e-23/X))
+    # Y = np.sqrt(2/2.7e25/rp/math.pow(4.3e-9, 3)*np.exp(-18*1.6e-19/1.38e-23/X))
+    plt.plot(X, Y, label=rp)
+plt.legend()
+# plt.yscale('log')
+plt.show()
 ```
