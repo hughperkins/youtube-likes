@@ -267,24 +267,3 @@ plt.ylim([0, max(ctr)])
 plt.show()
 
 ```
-
-```python
-%matplotlib inline
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-for rp in [0.01, 1, 100, int(80e9/101e6)]:
-    X = np.arange(1000, 20000, 500)
-    """
-    ionization energies:
-    - hydrogen: 13.6
-    - carbon dioxide: 13.8
-    - nitrogen: 18
-    """
-    Y = np.sqrt(2/2.7e25/rp/math.pow(4.3e-9, 3)*np.exp(-13.6*1.6e-19/1.38e-23/X))
-    # Y = np.sqrt(2/2.7e25/rp/math.pow(4.3e-9, 3)*np.exp(-18*1.6e-19/1.38e-23/X))
-    plt.plot(X, Y, label=rp)
-plt.legend()
-# plt.yscale('log')
-plt.show()
-```
