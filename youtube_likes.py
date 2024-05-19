@@ -106,6 +106,47 @@ def get_stats_for_channel(config: Dict[str, Any], api_key: str, channel_id: str,
     return persisted
 
 
+def ensure_parent_folder_exists(filepath: str) -> None:
+    view_dir = path.dirname(filepath)
+    if not path.exists(view_dir):
+        os.makedirs(view_dir)
+
+
+def write_viewlogs(channel_abbrev: str, persisted, config):
+    view_logfile = path.expanduser(config['views_log_filepath_templ'].format(abbrev=channel_abbrev))
+    ensure_parent_folder_exists(view_logfile)
+    dt = datetime.datetime.now()
+    dt_string = dt.strftime("%Y%m%d-%H%M")
+    res = {
+        "subs": persisted["num_subscriptions"],
+        "views": persisted["total_views"],
+        "likes": persisted["total_likes"],
+        "dt": dt_string
+    }
+    with open(view_logfile, 'a') as f:
+        f.write("- " + json.dumps(res) + "\n")
+
+    video_by_id = {video["video_id"]: video for video in persisted["videos"]}
+    channel_config_by_abbrev = {config["abbrev"]: config for config in config["channels"]}
+    channel_config = channel_config_by_abbrev[channel_abbrev]
+    if "log_videos" not in channel_config:
+        return
+    for video_id in channel_config["log_videos"]:
+        view_logfile = path.expanduser(config['views_by_video_log_filepath_templ'].format(
+            abbrev=channel_abbrev, video_id=video_id))
+        ensure_parent_folder_exists(view_logfile)
+        video = video_by_id[video_id]
+        res = {
+            "views": video["views"],
+            "likes": video["likes"],
+            "comments": video["comments"],
+            "favorites": video["favorites"],
+            "dt": dt_string
+        }
+        with open(view_logfile, 'a') as f:
+            f.write("- " + json.dumps(res) + "\n")
+
+
 def analyse_video(channel_abbrev: str, old_video: Dict[str, Any], new_video: Dict[str, Any]) -> Dict[str, Any]:
     body = ""
     priority_reasons_title = ""
@@ -172,20 +213,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
     print(channel_name)
     print('')
 
-    view_logfile = path.expanduser(config['views_log_filepath_templ'].format(abbrev=channel_abbrev))
-    view_dir = path.dirname(view_logfile)
-    if not path.exists(view_dir):
-        os.makedirs(view_dir)
-    dt = datetime.datetime.now()
-    dt_string = dt.strftime("%Y%m%d-%H%M")
-    res = {
-        "subs": persisted["num_subscriptions"],
-        "views": persisted["total_views"],
-        "likes": persisted["total_likes"],
-        "dt": dt_string
-    }
-    with open(view_logfile, 'a') as f:
-        f.write("- " + json.dumps(res) + "\n")
+    write_viewlogs(channel_abbrev=channel_abbrev, persisted=persisted, config=config)
 
     cache_file_path_templ = config["cache_file_path_templ"]
     cache_file_path = path.expanduser(cache_file_path_templ.format(abbrev=channel_abbrev))
@@ -254,7 +282,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
                     is_priority = True
                     priority_reasons_title += f" DV{d_hours}"
                     priority_reasons_desc += f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
-                if d_views_diff_pct > 0:
+                if abs(d_views_diff_pct) > 0:
                     output_str += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
     if path.exists(cache_file_path):

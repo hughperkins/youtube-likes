@@ -9,6 +9,10 @@ smtp_from_email: [your email]
 smtp_to_email: [your email]
 smtp_subject: youtube-likes
 channel_ids:
-- {'name': 'channel 1 name', 'id': 'channel 1 id', 'abbrev': 'AB'}
+- name: 'channel 1 name'
+  id: 'channel 1 id'
+  abbrev: 'AB'
+  log_videos: []  # list of video ids to log
 cache_file_path_templ: '~/youtube_views_cache/cache_{abbrev}.txt'
 views_log_filepath_templ: ~/views_logs/views_log_{abbrev}.yaml
+views_by_video_log_filepath_templ: ~/views_logs/{abbrev}/{video_id}.yaml
