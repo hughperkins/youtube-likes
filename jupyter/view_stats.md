@@ -240,13 +240,19 @@ def plot_graph(metric_name, max_days_old, aggreg_over: int = 1):
     if aggreg_over >= 1:
         title += ' delta'
     plt.title(title)
-    plt.ylim([0, max(y)])
+    if aggreg_over >= 1:
+        plt.ylim([0, max(y)])
     plt.show()
 
-max_days_old = 140
-impressions_agg = 1
-views_agg = 1
-ctr_agg = 1
+max_days_old = 12
+
+# impressions_agg = 1
+# views_agg = 1
+# ctr_agg = 1
+
+impressions_agg = 8
+views_agg = 8
+ctr_agg = 8
 
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, -1)
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, impressions_agg)
@@ -259,7 +265,7 @@ plot_graph('VIEWS', max_days_old, views_agg)
 views_data = get_data('VIEWS', max_days_old, aggreg_over=ctr_agg)
 impressions_data = get_data('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, aggreg_over=ctr_agg)
 print(len(views_data[0]), len(impressions_data[0]))
-ctr = [views_data[1][n] / impressions_data[1][n] * 100 for n in range(len(views_data[0]))]
+ctr = [views_data[1][n] / (impressions_data[1][n] + 1) * 100 for n in range(len(views_data[0]))]
 # print(ctr)
 plt.plot(views_data[0], ctr)
 plt.title('click through rate')
