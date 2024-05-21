@@ -246,13 +246,13 @@ def plot_graph(metric_name, max_days_old, aggreg_over: int = 1):
 
 max_days_old = 12
 
-# impressions_agg = 1
-# views_agg = 1
-# ctr_agg = 1
+impressions_agg = 1
+views_agg = 1
+ctr_agg = 1
 
-impressions_agg = 8
-views_agg = 8
-ctr_agg = 8
+# impressions_agg = 16
+# views_agg = 16
+# ctr_agg = 16
 
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, -1)
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, impressions_agg)
