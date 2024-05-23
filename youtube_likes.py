@@ -207,11 +207,11 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
 
     print('')
     print('============================================================')
-    persisted = get_stats_for_channel(
-        config=config, api_key=api_key, channel_id=channel_id, channel_abbrev=channel_abbrev)
     print(channel_abbrev)
     print(channel_name)
     print('')
+    persisted = get_stats_for_channel(
+        config=config, api_key=api_key, channel_id=channel_id, channel_abbrev=channel_abbrev)
 
     write_viewlogs(channel_abbrev=channel_abbrev, persisted=persisted, config=config)
 
