@@ -1,0 +1,49 @@
+import time
+from os.path import expanduser as expand
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+
+# URL of the page to check
+url = "http://youtube.com"
+
+# Path to your WebDriver executable (e.g., ChromeDriver)
+webdriver_path = expand("~/Downloads/chromedriver")
+
+# Initialize the WebDriver (this example uses Chrome)
+# service = webdriver.ChromeService(executable_path=webdriver_path)
+# service = webdriver.ChromeService()
+options = webdriver.ChromeOptions()
+# options.add_argument('--headless') 
+options.add_argument('--no-sandbox')
+options.add_argument(r"--user-data-dir=/Users/hugh/Library/Application Support/Google/Chrome")
+options.add_argument(r'--profile-directory=Profile 1')
+driver = webdriver.Chrome(options=options)
+
+# Open the URL
+driver.get(url)
+
+try:
+    input('press any key once signed in')
+    while True:
+        # Find all <h1> elements on the page
+        print(driver.current_url)
+        driver.get_screenshot_as_file(filename='/tmp/foo.png')
+        h1_elements = driver.find_elements(By.TAG_NAME, 'h1')
+        
+        # Count the number of <h1> tags
+        h1_count = len(h1_elements)
+        
+        # Print the count
+        print(f"Number of <h1> tags: {h1_count}")
+        
+        # Wait for 1 minute (60 seconds)
+        time.sleep(60)
+
+except KeyboardInterrupt:
+    # If the script is interrupted, close the WebDriver
+    print("Script interrupted by user. Closing WebDriver.")
+    driver.quit()
+except Exception as e:
+    # Print any other exceptions
+    print(f"An error occurred: {e}")
+    driver.quit()
