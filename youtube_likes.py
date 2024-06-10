@@ -183,6 +183,12 @@ def analyse_video(channel_abbrev: str, old_video: Dict[str, Any], new_video: Dic
                         f'- "{video_title}" %100{_letter}: {_new_value};\n'
                     )
                     is_priority = True
+                elif (_new_value // 1000 != _old_value // 1000):
+                    priority_reasons_title += f" %1000{_letter}"
+                    priority_reasons_desc += (
+                        f'- "{video_title}" %1000{_letter}: {_new_value};\n'
+                    )
+                    is_priority = True
                 elif _change >= 20 and channel_abbrev not in ['RL']:
                     is_priority = True
                     priority_reasons_title += f" 20{_letter}"
