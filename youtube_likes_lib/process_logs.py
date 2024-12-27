@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import json
 import pytz
 from ruamel.yaml import YAML
 from os.path import expanduser as expand
