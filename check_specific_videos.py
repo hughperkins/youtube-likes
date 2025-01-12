@@ -6,21 +6,11 @@
 # (otherwise it won't handle non-latin characters ok)
 
 import argparse
-import datetime
-import json
-from collections import defaultdict
-import math
-import os
-import time
-from typing import Any, Dict, List
-
-# import warnings
-from os import path
+from os.path import expanduser
 
 from ruamel.yaml import YAML
 import chili
 
-from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib, string_lib
 import youtube_likes
 import youtube_likes as yl
 
@@ -32,6 +22,7 @@ def run(args) -> None:
     with open(args.config_file, "r") as f:
         config_dict = yaml.load(f)
     config = chili.init_dataclass(config_dict, yl.Config)
+    config.cache_file_path_templ = args.cache_file_path_templ
 
     api_key = config.api_key
     channels = config.channels
@@ -50,7 +41,7 @@ def run(args) -> None:
             if channel_abbrev.lower() != args.abbrev.lower():
                 continue
         channel_config = channel_config_by_id[channel_id]
-        channel_name = channel_config.name
+        # channel_name = channel_config.name
         old_persisted = youtube_likes.load_cache(config=config, channel_abbrev=channel_abbrev)
         video_ids = [v["id"] for v in channel_config.specific_videos]
         videos = youtube_likes.get_video_stats(api_key=api_key, video_ids=video_ids)
@@ -82,6 +73,8 @@ def run(args) -> None:
 
     if not args.no_update_cache:
         for channel_abbrev, videos in videos_by_channel_abbrev.items():
+            if len(videos) == 0:
+                continue
             old_persisted = youtube_likes.load_cache(config=config, channel_abbrev=channel_abbrev)
             old_videos = old_persisted.videos
             old_video_n_by_id = {v.video_id: i for i, v in enumerate(old_videos)}
@@ -100,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("--config-file", default="config.yml", type=str)
     parser.add_argument("--no-send-email", action="store_true")
     parser.add_argument("--no-update-cache", action="store_true")
-    parser.add_argument("--abbrev", required=True, help="process only this abbrev")
+    parser.add_argument("--abbrev", help="process only this abbrev")
+    parser.add_argument("--cache-file-path-templ", default=expanduser("~/youtube_views_cache/cache_specific_{abbrev}.txt"))
     args = parser.parse_args()
     run(args)

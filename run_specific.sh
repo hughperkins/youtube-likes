@@ -6,12 +6,12 @@ cd
 pyenv activate nfs-youtube-likes-10
 # source ~/.bashrc
 cd ~/git/youtube-likes
-if ps -ef | grep youtube_likes.py | grep -v grep > /dev/null; then {
-	echo "youtube likes already running"
+if ps -ef | grep check_specific_videos.py | grep -v grep > /dev/null; then {
+	echo "ycheck_specific_videos already running"
 	exit 1
 } fi
 
-echo "youtube likes not running"
+echo "check_specific_videos not running"
 
 # ps -ef | grep youtube_likes.py | grep -v grep | awk '{print $2;}' | xargs -L1 kill
-python youtube_likes.py $*
+python check_specific_videos.py $*
