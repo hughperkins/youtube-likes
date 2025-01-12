@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import dataclass
 import datetime
 import pytz
 from ruamel.yaml import YAML
@@ -8,7 +9,14 @@ from os.path import expanduser as expand
 yaml = YAML()
 
 
-def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str):
+@dataclass
+class DeltaStats:
+    d_hours: float
+    d_views: int
+    d_likes: int
+
+
+def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str) -> DeltaStats:
     yaml_filepath = expand(views_log_filepath_templ.format(abbrev=abbrev))
     with open(yaml_filepath, "r") as f:
         stats = yaml.load(f)
@@ -42,7 +50,12 @@ def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: s
         d_likes = 0
     print("    d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
 
-    return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
+    return DeltaStats(
+        d_hours=hours_delta,
+        d_views=d_views,
+        d_likes=d_likes,
+    )
+    # return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
 
 
 def main():
