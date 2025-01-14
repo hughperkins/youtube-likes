@@ -13,6 +13,7 @@ import chili
 
 import youtube_likes
 import youtube_likes as yl
+from youtube_likes_lib.email_send_lib import generate_email_message, merge_channel_mails, send_smtp
 
 
 yaml = YAML()
@@ -59,17 +60,18 @@ def run(args) -> None:
             old_videos=old_videos, new_videos=videos, channel_config=channel_config_by_id[channel_id],
             channel_abbrev=channel_abbrev, output=output,
             analyzer_classes=[yl.Mod100, yl.Mod1000, yl.Pct10, yl.Delta20])
-        print(output.body)
+        print(channel_abbrev, "output.body", output.body)
         output_by_channel_abbrev[channel_abbrev] = output
+        generate_email_message(channel_name=channel_config.name, channel_abbrev=channel_abbrev, output=output)
 
-    global_email_title, global_email_body = yl.merge_channel_mails(list(output_by_channel_abbrev.values()))
+    global_email_title, global_email_body = merge_channel_mails(list(output_by_channel_abbrev.values()))
 
     if global_email_body.strip() == "":
         print("no change")
         return
 
     if config.send_smtp and not args.no_send_email:
-        yl.send_smtp(config=config, subject_postfix=global_email_title, body=global_email_body)
+        send_smtp(config=config, subject_postfix=global_email_title, body=global_email_body)
 
     if not args.no_update_cache:
         for channel_abbrev, videos in videos_by_channel_abbrev.items():

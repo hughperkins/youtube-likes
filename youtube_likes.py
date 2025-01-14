@@ -6,24 +6,19 @@
 # (otherwise it won't handle non-latin characters ok)
 
 import argparse
-from dataclasses import dataclass, field
-import datetime
 import json
-import abc
 from collections import defaultdict
-import math
-import os
-import time
-from typing import Any, Dict, List, Type
-
-# import warnings
-from os import path
+from typing import Type
 
 import chili
 import chili.mapping
 from ruamel.yaml import YAML
 
 from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib, string_lib
+from youtube_likes_lib.analyzers import Analyzer, Delta20, Mod100, Mod1000, Pct10
+from youtube_likes_lib.cache_mgr import get_mins_since_last_write, load_cache, write_cache
+from youtube_likes_lib.view_logs import write_viewlogs
+from youtube_likes_lib.yl_types import Channel, Config, Output, StatsSnapshot, Video
 
 
 yaml = YAML()
@@ -36,130 +31,6 @@ g_delta_views_threshold_pct_by_delta_hours = {
     24: 20,
     48: 10,
 }
-
-
-@dataclass
-class Channel:
-    name: str
-    id: str
-    abbrev: str
-    log_videos: list[str] = field(default_factory=list)
-    stats_baselines: Dict[str, Any] = field(default_factory=dict)
-    specific_videos: list[dict[str, Any]] = field(default_factory=list)
-
-
-@dataclass
-class Config:
-    api_key: str
-    min_change_interval_minutes: int
-    send_smtp: bool
-    smtp_server: str
-    smtp_port: int
-    smtp_username: str
-    smtp_password: str
-    smtp_from_email: str
-    smtp_to_email: str
-    smtp_subject: str
-    channels: list[Channel]
-
-    cache_file_path_templ: str
-    reporting_job_id: str
-
-    google_client_id: str
-    google_client_secret: str
-    google_refresh_token: str
-
-    views_log_filepath_templ: str
-    views_by_video_log_filepath_templ: str
-
-
-@dataclass
-class Video:
-    video_id: str
-    title: str
-    likes: int = 0
-    comments: int = 0
-    views: int = 0
-
-
-@dataclass
-class StatsSnapshot:
-    num_subscriptions: int
-    videos: list[Video]
-    total_views: int
-    total_likes: int
-    delta_by_time: dict[int, process_logs.DeltaStats]
-
-
-@dataclass
-class Output:
-    is_priority: bool = False
-    priority_reasons_title: str = ""
-    priority_reasons_desc: str = ""
-    body: str = ""
-    email_message: str = ""
-
-
-class Analyzer(abc.ABC):
-    def __init__(self, channel_abbrev: str, output: Output):
-        self.channel_abbrev = channel_abbrev
-        self.output = output
-
-    @abc.abstractmethod
-    def __call__(self, video_title: str, _letter: str, _old_value: int, _new_value: int) -> None:
-        pass
-
-
-class Mod100(Analyzer):
-    def __call__(self, video_title: str, _letter: str, _old_value: int, _new_value: int):
-        if (_new_value // 100 != _old_value // 100) and self.channel_abbrev not in ['RL']:
-            self.output.priority_reasons_title += f" %100{_letter}"
-            self.output.priority_reasons_desc += (
-                f'- "{video_title}" %100{_letter}: {_new_value};\n'
-            )
-            self.output.is_priority = True
-
-
-class Mod1000(Analyzer):
-    # def __init__(self, channel_abbrev: str, output: Output):
-    #     self.channel_abbrev = channel_abbrev
-    #     self.output = output
-
-    def __call__(self, video_title: str, _letter: str, _old_value: int, _new_value: int):
-        if (_new_value // 1000 != _old_value // 1000) and self.channel_abbrev not in ['RL']:
-            self.output.priority_reasons_title += f" %1000{_letter}"
-            self.output.priority_reasons_desc += (
-                f'- "{video_title}" %1000{_letter}: {_new_value};\n'
-            )
-            self.output.is_priority = True
-
-
-class Delta20(Analyzer):
-    # def __init__(self, channel_abbrev: str, output: Output):
-    #     self.channel_abbrev = channel_abbrev
-    #     self.output = output
-
-    def __call__(self, video_title: str, _letter: str, _old_value: int, _new_value: int):
-        _change = _new_value - _old_value
-        _chg_str = string_lib.int_to_signed_str(_change)
-        if _change >= 20 and self.channel_abbrev not in ['RL']:
-            self.output.is_priority = True
-            self.output.priority_reasons_title += f" 20{_letter}"
-            self.output.priority_reasons_desc += f'- "{video_title}" 20{_letter} {_chg_str} => {_new_value};\n'
-
-
-class Pct10(Analyzer):
-    # def __init__(self, channel_abbrev: str, output: Output):
-    #     self.channel_abbrev = channel_abbrev
-    #     self.output = output
-
-    def __call__(self, video_title: str, _letter: str, _old_value: int, _new_value: int):
-        _change = _new_value - _old_value
-        _chg_str = string_lib.int_to_signed_str(_change)
-        if _change > _old_value // 10:
-            self.output.is_priority = True
-            self.output.priority_reasons_title += f" 10p{_letter}"
-            self.output.priority_reasons_desc += f'- "{video_title}" 10p{_letter} {_chg_str} => {_new_value};\n'
 
 
 def get_video_ids_for_channel(api_key: str, channel_id: str) -> tuple[int, list[str]]:
@@ -194,7 +65,7 @@ def get_video_stats(api_key: str, video_ids: list[str]) -> list[Video]:
 
     print('')
     print('Get stats for each video:')
-    video_infos: List[Video] = []
+    video_infos: list[Video] = []
     # total_views = 0
     # total_likes = 0
     for video in videos:
@@ -262,45 +133,6 @@ def get_stats_for_channel(
     return stats_snapshot
 
 
-def ensure_parent_folder_exists(filepath: str) -> None:
-    view_dir = path.dirname(filepath)
-    if not path.exists(view_dir):
-        os.makedirs(view_dir)
-
-
-def write_viewlogs(channel_abbrev: str, persisted: StatsSnapshot, config: Config) -> None:
-    view_logfile = path.expanduser(config.views_log_filepath_templ.format(abbrev=channel_abbrev))
-    ensure_parent_folder_exists(view_logfile)
-    dt = datetime.datetime.now()
-    dt_string = dt.strftime("%Y%m%d-%H%M")
-    res = {
-        "subs": persisted.num_subscriptions,
-        "views": persisted.total_views,
-        "likes": persisted.total_likes,
-        "dt": dt_string
-    }
-    with open(view_logfile, 'a') as f:
-        f.write("- " + json.dumps(res) + "\n")
-
-    video_by_id = {video.video_id: video for video in persisted.videos}
-    channel_config_by_abbrev = {config.abbrev: config for config in config.channels}
-    channel_config = channel_config_by_abbrev[channel_abbrev]
-    for video_id in channel_config.log_videos:
-        view_logfile = path.expanduser(config.views_by_video_log_filepath_templ.format(
-            abbrev=channel_abbrev, video_id=video_id))
-        ensure_parent_folder_exists(view_logfile)
-        video = video_by_id[video_id]
-        res = {
-            "views": video.views,
-            "likes": video.likes,
-            "comments": video.comments,
-            # "favorites": video.favorites,
-            "dt": dt_string
-        }
-        with open(view_logfile, 'a') as f:
-            f.write("- " + json.dumps(res) + "\n")
-
-
 def analyse_video(
         channel_config: Channel, channel_abbrev: str, old_video: Video, new_video: Video,
         analyzer_classes: list[Type[Analyzer]],
@@ -350,55 +182,6 @@ def analyse_video(
     return output
 
 
-def get_cache_filepath(config: Config, channel_abbrev: str) -> str:
-    cache_file_path_templ = config.cache_file_path_templ
-    cache_file_path = path.expanduser(cache_file_path_templ.format(abbrev=channel_abbrev))
-    return cache_file_path
-
-
-def load_cache(config: Config, channel_abbrev: str) -> StatsSnapshot:
-    cache_file_path = get_cache_filepath(config=config, channel_abbrev=channel_abbrev)
-    if path.isfile(cache_file_path):
-        with open(cache_file_path, "r") as f:
-            as_dict = yaml.load(f)
-        # print(as_dict)
-        if "delta_by_time" not in as_dict:
-            as_dict["delta_by_time"] = {}
-        old_persisted = chili.init_dataclass(as_dict, StatsSnapshot)
-        # old_persisted = chili.extract(as_dict, StatsSnapshot)
-        # json_str = f.read()
-        # old_persisted = chili.from_json(json_str, StatsSnapshot)
-    else:
-        old_persisted = StatsSnapshot(
-            num_subscriptions=0,
-            videos=[],
-            total_likes=0,
-            total_views=0,
-            delta_by_time={},
-        )
-    return old_persisted
-
-
-def write_cache(config: Config, channel_abbrev: str, persisted: StatsSnapshot) -> None:
-    cache_file_path = get_cache_filepath(config=config, channel_abbrev=channel_abbrev)
-    cache_dir = path.dirname(cache_file_path)
-    if not path.exists(cache_dir):
-        os.makedirs(cache_dir)
-    as_dict = chili.asdict(persisted)
-    with open(cache_file_path, "w") as f:
-        yaml.dump(as_dict, f)
-        print(f' wrote {cache_file_path}')
-
-
-def get_mins_since_last_write(config: Config, channel_abbrev: str) -> float:
-    cache_file_path = get_cache_filepath(config=config, channel_abbrev=channel_abbrev)
-    if path.exists(cache_file_path):
-        mins_since_last_write = (time.time() - path.getmtime(cache_file_path)) / 60
-    else:
-        mins_since_last_write = math.inf
-    return mins_since_last_write
-
-
 def compare_video_lists(
     output: Output, channel_config: Channel, channel_abbrev: str,
     old_videos: list[Video], new_videos: list[Video],
@@ -424,27 +207,6 @@ def compare_video_lists(
             output.priority_reasons_title += analysis.priority_reasons_title
             output.priority_reasons_desc += analysis.priority_reasons_desc
             output.is_priority = output.is_priority or analysis.is_priority
-
-
-def generate_email_message(channel_name: str, channel_abbrev: str, output: Output) -> None:
-    """
-    populates email_message and priority_reasons_title
-    """
-    output.email_message = ""
-    if output.body != "":
-        output.email_message += channel_name + "\n"
-        output.email_message += "=" * len(channel_name) + "\n"
-        output.email_message += "\n"
-        if output.is_priority:
-            output.email_message += "Priority changes:\n"
-            output.email_message += output.priority_reasons_desc
-            output.email_message += "\n"
-        output.email_message += "Details:\n"
-        output.email_message += output.body
-        # email_message += "\n"
-    if output.priority_reasons_title != "":
-        output.priority_reasons_title = output.priority_reasons_title.strip()
-        output.priority_reasons_title = f" {channel_abbrev}[{output.priority_reasons_title}]"
 
 
 def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: Config):
@@ -531,7 +293,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
 
     print(f'output_str [{output.body}]')
 
-    generate_email_message(channel_name=channel_name, channel_abbrev=channel_abbrev, output=output)
+    email_send_lib.generate_email_message(channel_name=channel_name, channel_abbrev=channel_abbrev, output=output)
 
     return {
         "channel_name": channel_name,
@@ -540,41 +302,6 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
         "persisted": new_persisted,
         "mins_since_last_write": mins_since_last_write,
     }
-
-
-def merge_channel_mails(outputs: list[Output]) -> tuple[str, str]:
-    global_email_message = ""
-    global_priority_reasons_title = ""
-    global_email_message_l = []
-    # for res in results:
-    for output in outputs:
-        # output: Output = res["output"]
-        # _body = res["body"]
-        if output.body != "":
-            # _priority_reasons_title = output.priority_reasons_title
-            global_email_message_l.append(output.body)
-            if output.priority_reasons_title != "":
-                output.priority_reasons_title = output.priority_reasons_title.strip()
-                # global_priority_reasons_title += f" {channel_abbrev}[{output.priority_reasons_title}]"
-                global_priority_reasons_title += f" {output.priority_reasons_title}"
-    global_email_message = "\n".join(global_email_message_l)
-    return global_priority_reasons_title, global_email_message
-
-
-def send_smtp(config: Config, subject_postfix: str, body: str) -> None:
-    subject = config.smtp_subject
-    subject += subject_postfix
-    # print(config)
-    email_send_lib.send_email(
-        config.smtp_server,
-        config.smtp_port,
-        config.smtp_username,
-        config.smtp_password,
-        config.smtp_from_email,
-        config.smtp_to_email,
-        subject,
-        body,
-    )
 
 
 def run(args) -> None:
@@ -602,7 +329,7 @@ def run(args) -> None:
 
     outputs = [res["output"] for res in results]
 
-    global_priority_reasons_title, global_email_message = merge_channel_mails(outputs)
+    global_priority_reasons_title, global_email_message = email_send_lib.merge_channel_mails(outputs)
     if global_email_message == "":
         print("No changes detected")
         return
@@ -631,7 +358,7 @@ def run(args) -> None:
         return
 
     if config.send_smtp and not args.no_send_email:
-        send_smtp(config=config, subject_postfix=global_priority_reasons_title, body=global_email_message)
+        email_send_lib.send_smtp(config=config, subject_postfix=global_priority_reasons_title, body=global_email_message)
 
     if not args.no_update_cache:
         for res in results:
