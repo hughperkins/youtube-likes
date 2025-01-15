@@ -111,6 +111,8 @@ def write_viewlogs(channel_abbrev: str, persisted: StatsSnapshot, config: Config
         view_logfile = path.expanduser(config.views_by_video_log_filepath_templ.format(
             abbrev=channel_abbrev, video_id=video_id))
         ensure_parent_folder_exists(view_logfile)
+        if video_id not in video_by_id:
+            continue
         video = video_by_id[video_id]
         res = {
             "views": video.views,
