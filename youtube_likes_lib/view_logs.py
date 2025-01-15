@@ -6,10 +6,17 @@ import pytz
 from ruamel.yaml import YAML
 
 from youtube_likes_lib.file_helper import ensure_parent_folder_exists
-from youtube_likes_lib.yl_types import Config, StatsSnapshot
+from youtube_likes_lib.yl_types import Config, Output, StatsSnapshot, Video
 
 
 yaml = YAML()
+
+
+g_delta_views_threshold_pct_by_delta_hours = {
+    8: 40,
+    24: 20,
+    48: 10,
+}
 
 
 @dataclass
@@ -17,6 +24,38 @@ class DeltaStats:
     d_hours: float
     d_views: int
     d_likes: int
+
+
+class DeltaChecker():
+    def __init__(self, old_persisted: StatsSnapshot, new_persisted: StatsSnapshot, output: Output) -> None:
+        self.old_persisted = old_persisted
+        self.new_persisted = new_persisted
+        self.output = output
+
+    def run_check(self, d_hours: int, can_prioritize: bool) -> None:
+        print(f'checking changes h_hours {d_hours}')
+        # _delta_key = f"delta{d_hours}"
+        # print(f'_delta_key {_delta_key}')
+        if d_hours in self.old_persisted.delta_by_time and d_hours in self.new_persisted.delta_by_time:
+            print(f'{d_hours} in both old and new')
+            old_d_views = self.old_persisted.delta_by_time[d_hours].d_views
+            new_d_views = self.new_persisted.delta_by_time[d_hours].d_views
+            d_views_diff = new_d_views - old_d_views
+            print(f'd_views_diff {d_views_diff:.0f}')
+            d_views_diff_pct = 0.0
+            if new_d_views > 0:
+                d_views_diff_pct = d_views_diff / new_d_views * 100
+            print(f'd_views_diff_pct {d_views_diff_pct:.0f}')
+            if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours] and can_prioritize:
+                print('is_priority')
+                self.output.is_priority = True
+                self.output.priority_reasons_title += f" DV{d_hours}"
+                self.output.priority_reasons_desc += (
+                    f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: "
+                    f"{old_d_views:.0f} => {new_d_views:.0f}\n"
+                )
+            if abs(d_views_diff_pct) > 0:
+                self.output.body += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
 
 def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str) -> DeltaStats:

@@ -16,21 +16,14 @@ from ruamel.yaml import YAML
 
 from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib, string_lib
 from youtube_likes_lib.analyzers import Analyzer, Delta20, Mod100, Mod1000, Pct10
-from youtube_likes_lib.cache_mgr import get_mins_since_last_write, load_cache, write_cache
-from youtube_likes_lib.view_logs import write_viewlogs
+from youtube_likes_lib import cache_mgr
+from youtube_likes_lib import view_logs
 from youtube_likes_lib.yl_types import Channel, Config, Output, StatsSnapshot, Video
 
 
 yaml = YAML()
 
 # warnings.simplefilter("ignore", yaml.error.UnsafeLoaderWarning)
-
-
-g_delta_views_threshold_pct_by_delta_hours = {
-    8: 40,
-    24: 20,
-    48: 10,
-}
 
 
 def get_video_ids_for_channel(api_key: str, channel_id: str) -> tuple[int, list[str]]:
@@ -66,8 +59,6 @@ def get_video_stats(api_key: str, video_ids: list[str]) -> list[Video]:
     print('')
     print('Get stats for each video:')
     video_infos: list[Video] = []
-    # total_views = 0
-    # total_likes = 0
     for video in videos:
         if "short" in video["snippet"].get("tags", []):
             print(f"- [skip short \"{video['snippet']['title']}\"]")
@@ -75,13 +66,9 @@ def get_video_stats(api_key: str, video_ids: list[str]) -> list[Video]:
         video_id = video["id"]
         title = video["snippet"]["title"]
         s = video["statistics"]
-        # print(s)
         likes = int(s.get("likeCount", 0))
         views = int(s.get("viewCount", 0))
-        # total_views += views
-        # total_likes += likes
         print(f"- {title} views {views}")
-        # favorites = int(s.get("favoriteCount", 0))
         comments = int(s.get("commentCount", 0))
         video_infos.append(
             Video(
@@ -96,7 +83,6 @@ def get_video_stats(api_key: str, video_ids: list[str]) -> list[Video]:
 
 def get_stats_for_channel(
         config: Config, api_key: str, channel_id: str, channel_abbrev: str) -> StatsSnapshot:
-    # persisted: Dict[str, Any] = {}
     """
     Gets all video ids for the channel, along with the number of subscriptions
     then populates the returned dictionary with a list of Videos
@@ -109,9 +95,6 @@ def get_stats_for_channel(
     video_infos = get_video_stats(api_key=api_key, video_ids=video_ids)
     total_views = sum([v.views for v in video_infos])
     total_likes = sum([v.likes for v in video_infos])
-    # persisted["videos"] = video_infos
-    # persisted["total_views"] = total_views
-    # persisted["total_likes"] = total_likes
     delta_by_time = {}
     for d_hours in [8, 24, 48]:
         _res = process_logs.get_delta_stats(
@@ -119,9 +102,7 @@ def get_stats_for_channel(
             views_log_filepath_templ=config.views_log_filepath_templ,
             abbrev=channel_abbrev,
         )
-        # print(_res)
         delta_by_time[d_hours] = _res
-        # persisted[f"delta{d_hours}"] = _res
     print('total_views', total_views, 'total_likes', total_likes)
     stats_snapshot = StatsSnapshot(
         videos=video_infos,
@@ -149,10 +130,6 @@ def analyse_video(
         analyzer_classes = []
     analysers = [AnalyzerClass(channel_abbrev=channel_abbrev, output=output) for AnalyzerClass in analyzer_classes]
 
-    # for k in new_video.keys():
-    # old_video_dict = old_video.__dict__
-    # new_video_dict = new_video.__dict__
-    # for k in new_video_dict.keys():
     for k in ["comments", "likes", "views"]:
         if (
             k == "comments"
@@ -223,9 +200,9 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
     new_persisted = get_stats_for_channel(
         config=config, api_key=api_key, channel_id=channel_id, channel_abbrev=channel_abbrev)
 
-    write_viewlogs(channel_abbrev=channel_abbrev, persisted=new_persisted, config=config)
+    view_logs.write_viewlogs(channel_abbrev=channel_abbrev, persisted=new_persisted, config=config)
 
-    old_persisted = load_cache(config=config, channel_abbrev=channel_abbrev)
+    old_persisted = cache_mgr.load_cache(config=config, channel_abbrev=channel_abbrev)
 
     output = Output()
 
@@ -263,33 +240,12 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
     ):
         show_d8 = False
 
-    def run_check(output: Output, d_hours: int, can_prioritize: bool) -> None:
-        print(f'checking changes h_hours {d_hours}')
-        # _delta_key = f"delta{d_hours}"
-        # print(f'_delta_key {_delta_key}')
-        if d_hours in old_persisted.delta_by_time and d_hours in new_persisted.delta_by_time:
-            print(f'{d_hours} in both old and new')
-            old_d_views = old_persisted.delta_by_time[d_hours].d_views
-            new_d_views = new_persisted.delta_by_time[d_hours].d_views
-            d_views_diff = new_d_views - old_d_views
-            print(f'd_views_diff {d_views_diff:.0f}')
-            d_views_diff_pct = 0.0
-            if new_d_views > 0:
-                d_views_diff_pct = d_views_diff / new_d_views * 100
-            print(f'd_views_diff_pct {d_views_diff_pct:.0f}')
-            if abs(d_views_diff_pct) > g_delta_views_threshold_pct_by_delta_hours[d_hours] and can_prioritize:
-                print('is_priority')
-                output.is_priority = True
-                output.priority_reasons_title += f" DV{d_hours}"
-                output.priority_reasons_desc += f"- Delta views pct {d_hours}h {g_delta_views_threshold_pct_by_delta_hours[d_hours]}%: {old_d_views:.0f} => {new_d_views:.0f}\n"
-            if abs(d_views_diff_pct) > 0:
-                output.body += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
+    delta_checker = view_logs.DeltaChecker(old_persisted=old_persisted, new_persisted=new_persisted, output=output)
+    delta_checker.run_check(8, show_d8)
+    delta_checker.run_check(24, show_d24)
+    delta_checker.run_check(48, show_d48)
 
-    run_check(output, 8, show_d8)
-    run_check(output, 24, show_d24)
-    run_check(output, 48, show_d48)
-
-    mins_since_last_write = get_mins_since_last_write(config=config, channel_abbrev=channel_abbrev)
+    mins_since_last_write = cache_mgr.get_mins_since_last_write(config=config, channel_abbrev=channel_abbrev)
 
     print(f'output_str [{output.body}]')
 
@@ -339,7 +295,6 @@ def run(args) -> None:
         global_is_priority = True
     print("global_priority", global_is_priority)
 
-    # global_priority_reasons_title = " ".join([res["output"].priority_reasons_title for res in results])
     print('')
     print("Subject: ", global_priority_reasons_title)
     print('')
@@ -363,7 +318,7 @@ def run(args) -> None:
     if not args.no_update_cache:
         for res in results:
             channel_abbrev = res["channel_abbrev"]
-            write_cache(config=config, channel_abbrev=channel_abbrev, persisted=res["persisted"])
+            cache_mgr.write_cache(config=config, channel_abbrev=channel_abbrev, persisted=res["persisted"])
 
 
 if __name__ == "__main__":
