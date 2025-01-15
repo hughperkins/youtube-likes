@@ -13,6 +13,7 @@ import chili
 
 import youtube_likes
 import youtube_likes as yl
+from youtube_likes_lib import cache_mgr
 from youtube_likes_lib.email_send_lib import generate_email_message, merge_channel_mails, send_smtp
 
 
@@ -43,7 +44,7 @@ def run(args) -> None:
                 continue
         channel_config = channel_config_by_id[channel_id]
         # channel_name = channel_config.name
-        old_persisted = youtube_likes.load_cache(config=config, channel_abbrev=channel_abbrev)
+        old_persisted = cache_mgr.load_cache(config=config, channel_abbrev=channel_abbrev)
         video_ids = [v["id"] for v in channel_config.specific_videos]
         videos = youtube_likes.get_video_stats(api_key=api_key, video_ids=video_ids)
         videos_by_channel_abbrev[channel_abbrev] = videos
@@ -77,7 +78,7 @@ def run(args) -> None:
         for channel_abbrev, videos in videos_by_channel_abbrev.items():
             if len(videos) == 0:
                 continue
-            old_persisted = youtube_likes.load_cache(config=config, channel_abbrev=channel_abbrev)
+            old_persisted = cache_mgr.load_cache(config=config, channel_abbrev=channel_abbrev)
             old_videos = old_persisted.videos
             old_video_n_by_id = {v.video_id: i for i, v in enumerate(old_videos)}
             for v in videos:
@@ -87,7 +88,7 @@ def run(args) -> None:
                 else:
                     old_videos.append(v)
             # channel_abbrev = res["channel_abbrev"]
-            yl.write_cache(config=config, channel_abbrev=channel_abbrev, persisted=old_persisted)
+            cache_mgr.write_cache(config=config, channel_abbrev=channel_abbrev, persisted=old_persisted)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import datetime
 import json
 from os import path
@@ -6,7 +5,7 @@ import pytz
 from ruamel.yaml import YAML
 
 from youtube_likes_lib.file_helper import ensure_parent_folder_exists
-from youtube_likes_lib.yl_types import Config, Output, StatsSnapshot, Video
+from youtube_likes_lib.yl_types import Config, DeltaStats, Output, StatsSnapshot
 
 
 yaml = YAML()
@@ -19,13 +18,6 @@ g_delta_views_threshold_pct_by_delta_hours = {
 }
 
 
-@dataclass
-class DeltaStats:
-    d_hours: float
-    d_views: int
-    d_likes: int
-
-
 class DeltaChecker():
     def __init__(self, old_persisted: StatsSnapshot, new_persisted: StatsSnapshot, output: Output) -> None:
         self.old_persisted = old_persisted
@@ -34,8 +26,6 @@ class DeltaChecker():
 
     def run_check(self, d_hours: int, can_prioritize: bool) -> None:
         print(f'checking changes h_hours {d_hours}')
-        # _delta_key = f"delta{d_hours}"
-        # print(f'_delta_key {_delta_key}')
         if d_hours in self.old_persisted.delta_by_time and d_hours in self.new_persisted.delta_by_time:
             print(f'{d_hours} in both old and new')
             old_d_views = self.old_persisted.delta_by_time[d_hours].d_views

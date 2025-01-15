@@ -5,6 +5,13 @@ from youtube_likes_lib import process_logs
 
 
 @dataclass
+class DeltaStats:
+    d_hours: float
+    d_views: int
+    d_likes: int
+
+
+@dataclass
 class Channel:
     name: str
     id: str
@@ -54,7 +61,7 @@ class StatsSnapshot:
     videos: list[Video]
     total_views: int
     total_likes: int
-    delta_by_time: dict[int, process_logs.DeltaStats]
+    delta_by_time: dict[int, DeltaStats]
 
 
 @dataclass
