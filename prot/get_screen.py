@@ -12,6 +12,11 @@ import requests
 JSON = dict[str, 'JSON'] | list['JSON'] | str | int | None | float
 
 
+join_url = "https://studio.youtube.com/youtubei/v1/yta_web/join?alt=json"
+join_body_str = "{\"nodes\":[{\"key\":\"0__TOTALS_SUMS_QUERY_KEY\",\"value\":{\"query\":{\"dimensions\":[],\"metrics\":[{\"type\":\"LIKES_PER_LIKES_PLUS_DISLIKES_PERCENT\",\"includeTotal\":true},{\"type\":\"RATINGS_LIKES\",\"includeTotal\":true},{\"type\":\"RATINGS_DISLIKES\",\"includeTotal\":true}],\"restricts\":[{\"dimension\":{\"type\":\"VIDEO\"},\"inValues\":[\"HI5sjIr9gak\"]}],\"orders\":[],\"timeRange\":{\"dateIdRange\":{\"inclusiveStart\":20241221,\"exclusiveEnd\":20250118}},\"currency\":\"USD\",\"returnDataInNewFormat\":true,\"limitedToBatchedData\":false}}},{\"key\":\"1__TOTALS_TIMELINE_QUERY_KEY\",\"value\":{\"query\":{\"dimensions\":[{\"type\":\"DAY\"}],\"metrics\":[{\"type\":\"LIKES_PER_LIKES_PLUS_DISLIKES_PERCENT\"}],\"restricts\":[{\"dimension\":{\"type\":\"VIDEO\"},\"inValues\":[\"HI5sjIr9gak\"]}],\"orders\":[{\"dimension\":{\"type\":\"DAY\"},\"direction\":\"ANALYTICS_ORDER_DIRECTION_ASC\"}],\"timeRange\":{\"dateIdRange\":{\"inclusiveStart\":20241221,\"exclusiveEnd\":20250118}},\"currency\":\"USD\",\"returnDataInNewFormat\":true,\"limitedToBatchedData\":false}}}],\"connectors\":[],\"allowFailureResultNodes\":true,\"context\":{\"client\":{\"clientName\":62,\"clientVersion\":\"1.20250115.02.00\",\"hl\":\"en\",\"gl\":\"US\",\"experimentsToken\":\"\",\"utcOffsetMinutes\":-300,\"rolloutToken\":\"CLa8vteVgvPM2wEQw8mfzZCWigMYrdHBoZ7_igM%3D\",\"userInterfaceTheme\":\"USER_INTERFACE_THEME_DARK\",\"screenWidthPoints\":1470,\"screenHeightPoints\":474,\"screenPixelDensity\":2,\"screenDensityFloat\":2},\"request\":{\"returnLogEntry\":true,\"internalExperimentFlags\":[],\"eats\":\"Ac1K1YyqRgpIwfyBrUqDTmCFarp3+10mrRbvwMp7mb9Cc+tShOEfV4MfxTDf6hfPD+ZixjGFdcXS6pynPkCyO+ywSF0cWMtzSBCWMyg=\",\"sessionInfo\":{\"token\":\"YR1SZJKFZR\"},\"consistencyTokenJars\":[]},\"user\":{\"onBehalfOfUser\":\"108940515231048981095\",\"delegationContext\":{\"externalChannelId\":\"UCHPoNHk_aC5LmJDDVAH4w7Q\",\"roleType\":{\"channelRoleType\":\"CREATOR_CHANNEL_ROLE_TYPE_OWNER\"}},\"serializedDelegationContext\":\"EhhVQ0hQb05Ia19hQzVMbUpERFZBSDR3N1EqAggI\"},\"clientScreenNonce\":\"PIdrdlQgDFFE02Vs\"},\"trackingLabel\":\"web_explore_video\"}"
+join_body = json.loads(join_body_str)
+
+
 class Json:
     def __init__(self, data: JSON):
         self.data = data
@@ -124,6 +129,13 @@ def get_metric_total3(tab_json: Json, metric_name: str):
     return v
 
 
+def get_join_result(join_json_results, join_key: str):
+    for r in join_json_results:
+        if r["key"] == join_key:
+            return r
+    raise Exception(f"Could not find join result {join_key}")
+
+
 def run(args) -> None:
     with open(args.get_screen_js) as f:
         query_raw = f.read()
@@ -133,6 +145,23 @@ def run(args) -> None:
     body_str = query["body"]
     body = json.loads(body_str)
     url = query_raw.partition(",")[0].split('"')[1]
+
+    join_res = requests.post(join_url, headers=headers, data=join_body_str)
+    if join_res.status_code >= 300:
+        raise Exception("failed", join_res.status_code, join_res.content)
+    # print(join_res.status_code)
+    join_json = join_res.json()
+    # print(json.dumps(join_json, indent=2))
+    results = join_json["results"]
+    # print('results', json.dumps(results, indent=2))
+    totals = get_join_result(results, "0__TOTALS_SUMS_QUERY_KEY")
+    # totals = results[1]
+    # print('totals', json.dumps(totals, indent=2))
+    metric_columns = totals["value"]["resultTable"]["metricColumns"]
+    # print('metric_columns', json.dumps(metric_columns, indent=2))
+    likes = metric_columns[1]["counts"]["total"]
+    dislikes = metric_columns[2]["counts"]["total"]
+    print('likes', likes, 'dislikes', dislikes)
 
     # screen_config = body["screenConfig"]
     # screen_config["entity"]["videoId"] = args.video_id
