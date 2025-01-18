@@ -1,14 +1,28 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from youtube_likes_lib import process_logs
-
 
 @dataclass
 class DeltaStats:
     d_hours: float
     d_views: int
     d_likes: int
+
+
+@dataclass
+class VideoStatsLogLine:
+    dt: str
+    views: int = 0
+    likes: int = 0
+    comments: int = 0
+
+
+@dataclass
+class ChannelStatsLogLine:
+    dt: str
+    subs: int = 0
+    views: int = 0
+    likes: int = 0
 
 
 @dataclass
@@ -53,6 +67,7 @@ class Video:
     likes: int = 0
     comments: int = 0
     views: int = 0
+    likes_per_k: int = 0
 
 
 @dataclass

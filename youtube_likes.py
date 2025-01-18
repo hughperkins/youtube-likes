@@ -8,7 +8,7 @@
 import argparse
 import json
 from collections import defaultdict
-from typing import Type
+from typing import Any, Type
 
 import chili
 import chili.mapping
@@ -50,49 +50,60 @@ def get_video_ids_for_channel(api_key: str, channel_id: str) -> tuple[int, list[
     return num_subscriptions, video_ids
 
 
-def get_video_stats(api_key: str, video_ids: list[str]) -> list[Video]:
-    videos = youtube_query_lib.get_videos(
+def get_stats_for_video(video_dict: dict[str, Any]) -> Video:
+    video_id = video_dict["id"]
+    title = video_dict["snippet"]["title"]
+    s = video_dict["statistics"]
+    likes = int(s.get("likeCount", 0))
+    views = int(s.get("viewCount", 0))
+    print(f"- {title} views {views}")
+    comments = int(s.get("commentCount", 0))
+    return Video(
+            video_id=video_id,
+            title=title,
+            views=views,
+            likes=likes,
+            comments=comments,
+            likes_per_k=int(likes/views * 1000),
+        )
+
+
+def get_stats_for_videos(api_key: str, video_ids: list[str]) -> list[Video]:
+    """
+    Given list of video ids, collects stats for each, and returns
+    list of Video objects
+    """
+    video_dicts = youtube_query_lib.get_videos(
         api_key=api_key,
         video_ids=video_ids,
     )
 
     print('')
     print('Get stats for each video:')
-    video_infos: list[Video] = []
-    for video in videos:
-        if "short" in video["snippet"].get("tags", []):
-            print(f"- [skip short \"{video['snippet']['title']}\"]")
+    videos: list[Video] = []
+    for video_dict in video_dicts:
+        if "short" in video_dict["snippet"].get("tags", []):
+            print(f"- [skip short \"{video_dict['snippet']['title']}\"]")
             continue
-        video_id = video["id"]
-        title = video["snippet"]["title"]
-        s = video["statistics"]
-        likes = int(s.get("likeCount", 0))
-        views = int(s.get("viewCount", 0))
-        print(f"- {title} views {views}")
-        comments = int(s.get("commentCount", 0))
-        video_infos.append(
-            Video(
-                video_id=video_id,
-                title=title,
-                views=views,
-                likes=likes,
-                comments=comments,
-            ))
-    return video_infos
+        video = get_stats_for_video(video_dict=video_dict)
+        videos.append(video)
+    return videos
 
 
 def get_stats_for_channel(
         config: Config, api_key: str, channel_id: str, channel_abbrev: str) -> StatsSnapshot:
     """
     Gets all video ids for the channel, along with the number of subscriptions
-    then populates the returned dictionary with a list of Videos
+    then populates the returned dictionary with a list of Videos.
+    Returns also delta_by_time, which is change in overall channel stats,
+    for each of several timeframes
     """
 
     num_subscriptions, video_ids = get_video_ids_for_channel(
         api_key=api_key, channel_id=channel_id
     )
 
-    video_infos = get_video_stats(api_key=api_key, video_ids=video_ids)
+    video_infos = get_stats_for_videos(api_key=api_key, video_ids=video_ids)
     total_views = sum([v.views for v in video_infos])
     total_likes = sum([v.likes for v in video_infos])
     delta_by_time = {}
@@ -130,7 +141,7 @@ def analyse_video(
         analyzer_classes = []
     analysers = [AnalyzerClass(channel_abbrev=channel_abbrev, output=output) for AnalyzerClass in analyzer_classes]
 
-    for k in ["comments", "likes", "views"]:
+    for k in ["comments", "likes", "views", "likes_per_k"]:
         if (
             k == "comments"
             and video_title == "2 Create Unity RL env WITHOUT mlagents!"
@@ -138,8 +149,8 @@ def analyse_video(
         ):
             continue
 
-        if k not in ["likes", "comments", "views"]:
-            continue
+        # if k not in ["likes", "comments", "views"]:
+        #     continue
         _old_value = getattr(old_video, k, 0)
         _new_value = getattr(new_video, k, 0)
         _old_value -= stats_baseline.get(k, 0)
@@ -260,10 +271,15 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
     }
 
 
-def run(args) -> None:
+def load_config(config_file: str) -> Config:
     with open(args.config_file, "r") as f:
         config_dict = yaml.load(f)
     config = chili.init_dataclass(config_dict, Config)
+    return config
+
+
+def run(args) -> None:
+    config = load_config(config_file=args.config_file)
 
     api_key = config.api_key
     channels = config.channels

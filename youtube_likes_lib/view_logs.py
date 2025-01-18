@@ -1,11 +1,13 @@
+from dataclasses import dataclass
 import datetime
 import json
 from os import path
 import pytz
 from ruamel.yaml import YAML
+import chili
 
 from youtube_likes_lib.file_helper import ensure_parent_folder_exists
-from youtube_likes_lib.yl_types import Config, DeltaStats, Output, StatsSnapshot
+from youtube_likes_lib.yl_types import ChannelStatsLogLine, Config, DeltaStats, Output, VideoStatsLogLine, StatsSnapshot, Video
 
 
 yaml = YAML()
@@ -48,34 +50,48 @@ class DeltaChecker():
                 self.output.body += f"- Delta views pct {d_hours}h: {old_d_views:.0f} => {new_d_views:.0f}\n"
 
 
+def datetime_str_to_datetime(datetime_str: str) -> datetime.datetime:
+    return datetime.datetime.strptime(datetime_str, "%Y%m%d-%H%M")
+
+
 def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str) -> DeltaStats:
+    """
+    Load logfiles, and find the logentry closest in time to hours_delta ago, and compare that
+    to the log entry for now, and return this delta
+    """
     yaml_filepath = path.expanduser(views_log_filepath_templ.format(abbrev=abbrev))
     with open(yaml_filepath, "r") as f:
         stats = yaml.load(f)
-    new_stats = []
-    for stat in stats:
-        dt = datetime.datetime.strptime(stat["dt"], "%Y%m%d-%H%M")
+
+    @dataclass
+    class LogLineDelta:
+        delta_hours: float
+        stat: ChannelStatsLogLine
+
+    stat_delta_l: list[LogLineDelta] = []
+    for stat_d in stats:
+        stat = chili.init_dataclass(stat_d, ChannelStatsLogLine)
+        dt = datetime_str_to_datetime(stat.dt)
         dt = dt.replace(tzinfo=pytz.utc)
         hours_old = (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() / 3600
         if hours_old / 3600 > 24 * 3:
             continue
-        stat["dt"] = dt
-        stat["hours_old"] = hours_old
-        stat["delta"] = abs(hours_old - hours_delta)
-        new_stats.append(stat)
-    stats = new_stats
-    new_stat = stats[-1]
+        delta = abs(hours_old - hours_delta)
+        stat_delta_l.append(LogLineDelta(delta_hours=delta, stat=stat))
+    new_stat = stat_delta_l[-1].stat
 
-    stats.sort(key=lambda stat: stat["delta"])
-    old_stat = stats[0]
-    d_hours = (new_stat["dt"] - old_stat["dt"]).total_seconds() / 3600
-    d_views = new_stat["views"] - old_stat["views"]
-    d_likes = new_stat["likes"] - old_stat["likes"]
+    stat_delta_l.sort(key=lambda logline_delta: logline_delta.delta_hours)
+    old_stat = stat_delta_l[0].stat
+    new_dt = datetime_str_to_datetime(new_stat.dt)
+    old_dt = datetime_str_to_datetime(old_stat.dt)
+    d_hours = (new_dt - old_dt).total_seconds() / 3600
+    d_views = new_stat.views - old_stat.views
+    d_likes = new_stat.likes - old_stat.likes
     print("    d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
 
     if d_hours > 0:
-        d_views = d_views * hours_delta / d_hours
-        d_likes = d_likes * hours_delta / d_hours
+        d_views = int(d_views * hours_delta / d_hours)
+        d_likes = int(d_likes * hours_delta / d_hours)
     else:
         print('warning: d_hours is 0')
         d_views = 0
@@ -87,39 +103,61 @@ def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: s
         d_views=d_views,
         d_likes=d_likes,
     )
-    # return {"d_hours": hours_delta, "d_views": d_views, "d_likes": d_likes}
 
 
-def write_viewlogs(channel_abbrev: str, persisted: StatsSnapshot, config: Config) -> None:
-    view_logfile = path.expanduser(config.views_log_filepath_templ.format(abbrev=channel_abbrev))
-    ensure_parent_folder_exists(view_logfile)
-    dt = datetime.datetime.now()
+def get_datetime_str(dt: datetime.datetime) -> str:
     dt_string = dt.strftime("%Y%m%d-%H%M")
-    res = {
-        "subs": persisted.num_subscriptions,
-        "views": persisted.total_views,
-        "likes": persisted.total_likes,
-        "dt": dt_string
-    }
-    with open(view_logfile, 'a') as f:
-        f.write("- " + json.dumps(res) + "\n")
+    return dt_string
 
+
+def write_channel_logline(dt: datetime.datetime, channel_abbrev: str, config: Config, persisted: StatsSnapshot) -> None:
+    view_logfile = path.expanduser(config.views_log_filepath_templ.format(abbrev=channel_abbrev))
+    dt_string = get_datetime_str(dt=dt)
+    ensure_parent_folder_exists(view_logfile)
+    res = ChannelStatsLogLine(
+        dt=dt_string,
+        subs=persisted.num_subscriptions,
+        views=persisted.total_views,
+        likes=persisted.total_likes
+    )
+    res_str = chili.as_json(res, ChannelStatsLogLine)
+    with open(view_logfile, 'a') as f:
+        f.write("- " + res_str + "\n")
+
+
+def write_video_logline(dt: datetime.datetime, config: Config, channel_abbrev: str, video: Video) -> None:
+    dt_string = get_datetime_str(dt=dt)
+    view_logfile = path.expanduser(config.views_by_video_log_filepath_templ.format(
+        abbrev=channel_abbrev, video_id=video.video_id))
+    ensure_parent_folder_exists(view_logfile)
+    res = VideoStatsLogLine(
+        views=video.views,
+        likes=video.likes,
+        comments=video.comments,
+        dt=dt_string
+    )
+    res_str = chili.as_json(res, VideoStatsLogLine)
+    with open(view_logfile, 'a') as f:
+        f.write("- " + res_str + "\n")
+
+
+def write_per_video_loglines(dt: datetime.datetime, channel_abbrev: str, config: Config, persisted: StatsSnapshot) -> None:
     video_by_id = {video.video_id: video for video in persisted.videos}
     channel_config_by_abbrev = {config.abbrev: config for config in config.channels}
     channel_config = channel_config_by_abbrev[channel_abbrev]
     for video_id in channel_config.log_videos:
-        view_logfile = path.expanduser(config.views_by_video_log_filepath_templ.format(
-            abbrev=channel_abbrev, video_id=video_id))
-        ensure_parent_folder_exists(view_logfile)
         if video_id not in video_by_id:
-            continue
+            return
         video = video_by_id[video_id]
-        res = {
-            "views": video.views,
-            "likes": video.likes,
-            "comments": video.comments,
-            # "favorites": video.favorites,
-            "dt": dt_string
-        }
-        with open(view_logfile, 'a') as f:
-            f.write("- " + json.dumps(res) + "\n")
+        write_video_logline(video=video, channel_abbrev=channel_abbrev, config=config, dt=dt)
+
+
+def write_viewlogs(channel_abbrev: str, persisted: StatsSnapshot, config: Config) -> None:
+    """
+    Writes a line in the channel logfile, for subs, views, likes, date
+    for each video in log_videos, from config, writes a line to video-specific
+    file, with views, likes, comments
+    """
+    dt = datetime.datetime.now()
+    write_channel_logline(dt=dt, channel_abbrev=channel_abbrev, persisted=persisted, config=config)
+    write_per_video_loglines(dt=dt, channel_abbrev=channel_abbrev, persisted=persisted, config=config)
