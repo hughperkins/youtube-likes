@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.16.0
+      jupytext_version: 1.14.6
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -137,18 +137,22 @@ def cumul(xy_l: Tuple[list[float], list[float]]) -> Tuple[list[float], list[floa
 max_days_old = 1000
 watch_time_agg = 1
 
-watch_time_delta = get_data('WATCH_TIME', max_days_old, -1, scale_values=1/3600/1000)
+watch_time_cumul = get_data('WATCH_TIME', max_days_old, -1, scale_values=1/3600/1000)
 # watch_time_delta = get_data('WATCH_TIME', max_days_old, watch_time_agg, scale_values=1/3600/1000)
+watch_time_delta = get_data('WATCH_TIME', max_days_old, 1, scale_values=1/3600/1000)
 
 # print(watch_time)
+
+plot_graph2('watch time cumul (hours)', watch_time_cumul)
+plot_graph2('watch time cumul (hours)', watch_time_cumul, log_y=True)
 
 plot_graph2('watch time delta (hours)', watch_time_delta)
 plot_graph2('watch time delta (hours)', watch_time_delta, log_y=True)
 
-watch_time_cumul = cumul(watch_time_delta)
+# watch_time_cumul = cumul(watch_time_delta)
 
-plot_graph2('watch time cumul (hours)', watch_time_cumul)
-plot_graph2('watch time cumul (hours)', watch_time_cumul, log_y=True)
+# plot_graph2('watch time cumul (hours)', watch_time_cumul)
+# plot_graph2('watch time cumul (hours)', watch_time_cumul, log_y=True)
 
 # plot_graph('WATCH_TIME', max_days_old, -1, scale_values=1/3600/1000)
 # plot_graph('WATCH_TIME', max_days_old, watch_time_agg, scale_values=1/3600)

@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.16.0
+      jupytext_version: 1.14.6
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -23,7 +23,7 @@ jupyter:
 
 get_cards_output_filepath = '/tmp/get_cards.json'
 
-# do the same thing but for 'join' search eam
+# do the same thing but for 'join' search eamO
 join_output_filepath = '/tmp/join2.json'
 
 import json
@@ -244,7 +244,7 @@ def plot_graph(metric_name, max_days_old, aggreg_over: int = 1):
         plt.ylim([0, max(y)])
     plt.show()
 
-max_days_old = 12
+max_days_old = 0.5
 
 impressions_agg = 1
 views_agg = 1
@@ -254,12 +254,12 @@ ctr_agg = 1
 # views_agg = 16
 # ctr_agg = 16
 
-plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, -1)
+plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, 0)
 plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS', max_days_old, impressions_agg)
 
-plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS_VTR', max_days_old, -1)
+# plot_graph('VIDEO_THUMBNAIL_IMPRESSIONS_VTR', max_days_old, 0)
 
-plot_graph('VIEWS', max_days_old, -1)
+plot_graph('VIEWS', max_days_old, 0)
 plot_graph('VIEWS', max_days_old, views_agg)
 
 views_data = get_data('VIEWS', max_days_old, aggreg_over=ctr_agg)
@@ -271,5 +271,104 @@ plt.plot(views_data[0], ctr)
 plt.title('click through rate')
 plt.ylim([0, max(ctr)])
 plt.show()
+
+```
+
+```python
+%matplotlib inline
+# download the following file from creator studio "Video Analytics" page, for a specific video
+# by going into dev console, network, reloading the "Video Analytics" page, for a specific video,
+# cahnge to '28 days'
+# in the "reach" tab
+# and filtering on 'screen'
+# select, do 'copy' 'copy as fetch (js)'
+# paste into a file, and edit get_screen_reach_js_filepath
+
+import matplotlib.pyplot as plt
+import datetime
+import json
+import sys
+import importlib
+
+sys.path.append('..')
+from youtube_likes_lib import studio_scraping
+importlib.reload(studio_scraping)
+
+get_screen_reach_js_filepath = '/tmp/request.js'
+
+videos = {
+    '1J3awpFZwF4': 'trig mash 2',
+    '_L0IYWUgkNo': '1000 miles',
+    'eStB3qgWo1g': 'fonts v2',
+    'NJ22jB_xOzA': 'ai takes jobs',
+}
+
+# video_id = '1J3awpFZwF4' # trigmash2
+days = 7
+max_days_old = 7
+
+def get_data(xy, max_days_old, aggreg_over):
+#     xy = reach.get_series(metric_name)
+    
+    xy = [(- (datetime.datetime.now() - x).total_seconds() / 3600 / 24, y) for x, y in xy if (datetime.datetime.now() - x).total_seconds() / 3600 / 24 <= max_days_old]
+    xy = [(x, y) for x, y in xy if x >= - max_days_old]
+    deltas = []
+    for n, (x, y) in enumerate(xy):
+        if aggreg_over >= 1:
+            if n >= aggreg_over:
+                y_avg = (y - xy[n - aggreg_over][1]) / aggreg_over
+                deltas.append((x, y_avg))
+        else:
+            deltas.append((x, y))
+        # last_x, last_y = x, y
+    xy = deltas
+    x, y = list(zip(*xy))
+    return x, y
+    
+
+def plot_graph(xy, metric_name, max_days_old, aggreg_over: int = 1, multiplier: float = 1):
+#     xy = reach.get_series(metric_name)
+
+    xy = [(- (datetime.datetime.now() - x).total_seconds() / 3600 / 24, y) for x, y in xy]
+    xy = [(x, y) for x, y in xy if x >= - max_days_old]
+    if multiplier != 1:
+        xy = [(x, y * multiplier) for x, y in xy]
+    deltas = []
+    for n, (x, y) in enumerate(xy):
+        if aggreg_over >= 1:
+            if n >= aggreg_over:
+                y_avg = (y - xy[n - aggreg_over][1]) / aggreg_over
+                deltas.append((x, y_avg))
+        else:
+            deltas.append((x, y))
+    xy = deltas
+    x, y = list(zip(*xy))
+    plt.plot(x, y)
+    title = metric_name
+    if aggreg_over >= 1:
+        title += ' delta'
+    plt.title(title)
+    if aggreg_over >= 1:
+        plt.ylim([min(y), max(y)])
+    plt.show()
+
+impressions_agg = 1
+views_agg = 1
+ctr_agg = 1
+
+# impressions_agg = 16
+# views_agg = 16
+# ctr_agg = 16
+
+for video_id, short_name in videos.items():
+    print('=' * 80)
+    print(short_name)
+    reach = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_REACH", video_id=video_id, days=days)
+    engagement = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_ENGAGEMENT", video_id=video_id, days=days)
+
+    plot_graph(reach.get_series('VIDEO_THUMBNAIL_IMPRESSIONS'), 'Impressions', max_days_old, 0)
+    plot_graph(reach.get_series('VIEWS'), 'Views', max_days_old, 0)
+    plot_graph(reach.get_series('VIDEO_THUMBNAIL_IMPRESSIONS_VTR'), 'Ctr', max_days_old, 0)
+    plot_graph(engagement.get_series('AVERAGE_WATCH_TIME'), 'Avg watch time', max_days_old, 0, multiplier = 1 / 1000 / 60)
 
 ```

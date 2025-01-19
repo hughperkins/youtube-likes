@@ -1,6 +1,6 @@
 import datetime
 import json
-from typing import cast
+from typing import Any, cast
 
 import requests
 
@@ -44,6 +44,17 @@ class Tab:
             if keyTab["metricTabConfig"]["metric"].unwrap_str() == metric_tab_name:
                 return keyTab
         raise Exception(f"metric tab {metric_tab_name} not found")
+
+    def get_series(self, metric_name: str) -> list[tuple[datetime.datetime, float]]:
+        metricTab = self.get_metric_tab(metric_name)
+        primaryContent = metricTab["primaryContent"]
+        # print('preimaryContent metric', primaryContent["metric"].unwrap_str())
+        # print(primaryContent["metric"])
+        series = cast(list[dict[str, Any]], primaryContent["mainSeries"]["datums"].data)
+        # return series
+        xy = [(pt["x"], pt["y"]) for pt in series]
+        xy = [(datetime.datetime.fromtimestamp(x / 1000), y) for x, y in xy]
+        return xy
 
     def get_metric_total_from_key_metric_tabs(self, metric_name: str) -> int | float:
         metric_tab = self.get_metric_tab(metric_tab_name=metric_name)
