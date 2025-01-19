@@ -71,40 +71,12 @@ def get_metric_total2(key_metric_tabs: Json, metric_name: str) -> int | float:
     return total
 
 
-# def try_Json_class(res):
-#     res_json = Json(res.json())
-#     # print(res_json)
-#     cards = res_json.cards
-#     # impressions = cards[0]["keyMetricCardData"]["keyMetricTabs"][0]["primaryContent"]["total"]
-#     # impressions = res_json["cards"][0]["keyMetricCardData"]["keyMetricTabs"][0]["primaryContent"]["total"]
-#     for i, card in enumerate(cards):
-#         print(i, card.keys())
-#     key_metric_card_data = get_card2(cards, "keyMetricCardData")["keyMetricCardData"]
-#     key_metric_tabs = key_metric_card_data["keyMetricTabs"]
-#     print('key_metric_tab:')
-#     for key_metric_tab in key_metric_tabs:
-#         print('    ', key_metric_tab["metricTabConfig"]["metric"].unwrap_str())
-#     impressions = get_metric_total2(key_metric_tabs, "VIDEO_THUMBNAIL_IMPRESSIONS")
-#     # vtr is 'view through rate', 
-#     # vtr excludes views that are not via a thumbnail, so it is the more accurate measure of ctr,
-#     # and matches what is on the youtube web page
-#     ctr = get_metric_total2(key_metric_tabs, "VIDEO_THUMBNAIL_IMPRESSIONS_VTR")
-#     views = get_metric_total2(key_metric_tabs, "VIEWS")
-#     # ctr = views / impressions * 100
-#     print('impressions', impressions, 'views', views, f'ctr {ctr:.1f}')
-#     # print('views', views, f'ctr {ctr:.1f}')
-
-
 def load_tab(url: str, headers: Any, body: Any, tab_name: str, video_id: str, days: int) -> Json:
     screen_config = body["screenConfig"]
     screen_config["entity"]["videoId"] = video_id
     screen_config["timePeriod"]["timePeriodType"] = analytics_time_period_by_days[days]
-    # print(json.dumps(screen_config, indent=2))
     desktop_state = body["desktopState"]
-    # ANALYTICS_TAB_ID_REACH
-    # ANALYTICS_TAB_ID_ENGAGEMENT
     desktop_state["tabId"] = tab_name
-    # print(json.dumps(desktop_state, indent=2))
     body_str = json.dumps(body)
     res = requests.post(url, headers=headers, data=body_str)
     if res.status_code >= 300:
@@ -151,16 +123,12 @@ def get_join_result(join_json_results, join_key: str):
 
 
 def render_join_body(join_body, video_id: str, days: int):
-    # print(json.dumps(join_body, indent=2))
     for node in join_body["nodes"]:
         restricts = node["value"]["query"]["restricts"]
-        # print('restrict', json.dumps(restricts, indent=2))
         restricts[0]["inValues"][0] = video_id
         date_id_range = node["value"]["query"]["timeRange"]["dateIdRange"]
-        # print("date_id_range", date_id_range)
         end_str = datetime.date.today().strftime("%Y%m%d")
         start_str = (datetime.date.today() - datetime.timedelta(days=days)).strftime("%Y%m%d")
-        # print('start_str', start_str, 'end_str', end_str)
         date_id_range["inclusiveStart"] = start_str
         date_id_range["exclusiveEnd"] = end_str
     return join_body
@@ -197,8 +165,6 @@ def get_video_stats(get_screen_js: str, video_id: str, title: str, days: int) ->
 
     engagement_tab = load_tab(
         url=url, headers=headers, body=body, tab_name="ANALYTICS_TAB_ID_ENGAGEMENT", video_id=video_id, days=days)
-    # metrics = get_metrics(engagement_tab)
-    # print(metrics)
 
     impressions = get_int_metric_total3(reach_tab, "VIDEO_THUMBNAIL_IMPRESSIONS")
     ctr = get_float_metric_total3(reach_tab, "VIDEO_THUMBNAIL_IMPRESSIONS_VTR")
@@ -244,7 +210,6 @@ def run(args) -> None:
         if args.video_id and video_id_name.video_id != args.video_id:
             continue
         print(video_id_name.video_id, video_id_name.title)
-        # print(json.dumps(video_id_name.full_info, indent=2))
         report_line = get_video_stats(
                 get_screen_js=args.get_screen_js, video_id=video_id_name.video_id,
                 title=video_id_name.title, days=args.days)
@@ -263,7 +228,6 @@ def main() -> None:
     parser.add_argument('--get-screen-js', default="/tmp/request.js", type=str)
     parser.add_argument('--out-csv', default="/tmp/yt_report.csv", type=str)
     parser.add_argument('--video-id', type=str)
-    # parser.add_argument('--time-period', choices=["ANALYTICS_TIME_PERIOD_TYPE_FOUR_WEEKS"])
     parser.add_argument('--days', default=28, type=int, choices=analytics_time_period_by_days.keys())
     args = parser.parse_args()
     run(args)
