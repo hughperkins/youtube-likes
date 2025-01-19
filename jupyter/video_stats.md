@@ -118,8 +118,17 @@ videos = {
 }
 
 # video_id = '1J3awpFZwF4' # trigmash2
-days = 7
+"""
+Either:
+- set days to something other than -1, and set aggreg_over = 0
+- or set days to -1, and set aggreg_over to 1
+
+(Because: for views and impressions, when days is set to -1, these are returned by youtube as cumulative,
+and non-cumulative otherwise)
+"""
+days = -1
 max_days_old = 7
+aggreg_over = 1
 
 def get_data(xy, max_days_old, aggreg_over):
 #     xy = reach.get_series(metric_name)
@@ -175,6 +184,8 @@ ctr_agg = 1
 # views_agg = 16
 # ctr_agg = 16
 
+studio_scraper = studio_scraping.StudioScraper(get_screen_js_filepath=get_screen_reach_js_filepath)
+
 for video_id, short_name in videos.items():
     print('=' * 80)
     print(short_name)
@@ -182,8 +193,8 @@ for video_id, short_name in videos.items():
     reach = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_REACH", video_id=video_id, days=days)
     engagement = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_ENGAGEMENT", video_id=video_id, days=days)
 
-    plot_graph(ax1, reach.get_series('VIDEO_THUMBNAIL_IMPRESSIONS'), 'Impressions', max_days_old, 0)
-    plot_graph(ax2, reach.get_series('VIEWS'), 'Views', max_days_old, 0)
+    plot_graph(ax1, reach.get_series('VIDEO_THUMBNAIL_IMPRESSIONS'), 'Impressions', max_days_old, aggreg_over)
+    plot_graph(ax2, reach.get_series('VIEWS'), 'Views', max_days_old, aggreg_over)
     plot_graph(ax3, reach.get_series('VIDEO_THUMBNAIL_IMPRESSIONS_VTR'), 'Ctr', max_days_old, 0)
     plot_graph(ax4, engagement.get_series('AVERAGE_WATCH_TIME'), 'Avg watch time', max_days_old, 0, multiplier = 1 / 1000 / 60)
     plt.tight_layout()
