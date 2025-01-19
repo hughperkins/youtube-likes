@@ -19,6 +19,52 @@ analytics_time_period_by_days = {
 }
 
 
+class Tab:
+    def __init__(self, tab_Json: Json):
+        self.tab_Json = tab_Json
+        self.cards = self.tab_Json.cards
+        self.key_metric_card_data = self.get_card("keyMetricCardData")["keyMetricCardData"]
+        self.key_metric_tabs = self.key_metric_card_data["keyMetricTabs"]
+
+    def get_card(self, cardName: str) -> Json:
+        for card in self.cards:
+            if cardName in card:
+                return card
+        raise Exception(f"card {cardName} not found")
+
+    def get_metrics(self) -> list[str]:
+        metrics = []
+        for keyTab in self.key_metric_tabs:
+            metric = keyTab["metricTabConfig"]["metric"].unwrap_str()
+            metrics.append(metric)
+        return metrics
+
+    def get_metric_tab(self, metric_tab_name: str) -> Json:
+        for keyTab in self.key_metric_tabs:
+            if keyTab["metricTabConfig"]["metric"].unwrap_str() == metric_tab_name:
+                return keyTab
+        raise Exception(f"metric tab {metric_tab_name} not found")
+
+    def get_metric_total_from_key_metric_tabs(self, metric_name: str) -> int | float:
+        metric_tab = self.get_metric_tab(metric_tab_name=metric_name)
+        total = metric_tab["primaryContent"]["total"].unwrap_int()
+        return total
+
+    def get_metric_total_from_tab(self, metric_name: str):
+        v = self.get_metric_total_from_key_metric_tabs(metric_name)
+        return v
+
+    def get_float_metric_total_from_tab(self, metric_name: str) -> float:
+        v = self.get_metric_total_from_tab(metric_name=metric_name)
+        v = cast(float, v)
+        return v
+
+    def get_int_metric_total_from_tab(self, metric_name: str) -> int:
+        v = self.get_metric_total_from_tab(metric_name=metric_name)
+        v = cast(int, v)
+        return v
+
+
 class StudioScraper:
     def __init__(self, get_screen_js_filepath: str) -> None:
         with open(get_screen_js_filepath) as f:
@@ -31,37 +77,20 @@ class StudioScraper:
         self.url = self.query_raw.partition(",")[0].split('"')[1]
 
     def get_likes_dislikes(self, video_id: str, days: int) -> tuple[int, int]:
-        join_body_rendered = self.render_join_body(join_body, video_id=video_id, days=days)
+        join_body_rendered = self._render_join_body(join_body, video_id=video_id, days=days)
 
         join_res = requests.post(join_url, headers=self.headers, data=json.dumps(join_body_rendered))
         if join_res.status_code >= 300:
             raise Exception("failed", join_res.status_code, join_res.content)
         join_json = join_res.json()
         results = join_json["results"]
-        totals = self.get_join_result(results, "0__TOTALS_SUMS_QUERY_KEY")
+        totals = self._get_join_result(results, "0__TOTALS_SUMS_QUERY_KEY")
         metric_columns = totals["value"]["resultTable"]["metricColumns"]
         likes = metric_columns[1]["counts"].get("total", 0)
         dislikes = metric_columns[2]["counts"].get("total", 0)
         return likes, dislikes
 
-    def get_card(self, cards: Json, cardName: str) -> Json:
-        for card in cards:
-            if cardName in card:
-                return card
-        raise Exception(f"card {cardName} not found")
-
-    def get_metric_tab(self, key_metric_tabs: Json, tab_name: str) -> Json:
-        for keyTab in key_metric_tabs:
-            if keyTab["metricTabConfig"]["metric"].unwrap_str() == tab_name:
-                return keyTab
-        raise Exception(f"metric tab {tab_name} not found")
-
-    def get_metric_total_from_key_metric_tabs(self, key_metric_tabs: Json, metric_name: str) -> int | float:
-        metric_tab = self.get_metric_tab(key_metric_tabs=key_metric_tabs, tab_name=metric_name)
-        total = metric_tab["primaryContent"]["total"].unwrap_int()
-        return total
-
-    def load_tab(self, tab_name: str, video_id: str, days: int) -> Json:
+    def load_tab(self, tab_name: str, video_id: str, days: int) -> Tab:
         screen_config = self.body["screenConfig"]
         screen_config["entity"]["videoId"] = video_id
         screen_config["timePeriod"]["timePeriodType"] = analytics_time_period_by_days[days]
@@ -71,42 +100,15 @@ class StudioScraper:
         res = requests.post(self.url, headers=self.headers, data=body_str)
         if res.status_code >= 300:
             raise Exception('ERROR', res, res.json())
-        return Json(res.json())
+        return Tab(Json(res.json()))
 
-    def get_metrics(self, tab_json: Json) -> list[str]:
-        cards = tab_json.cards
-        key_metric_card_data = self.get_card(cards, "keyMetricCardData")["keyMetricCardData"]
-        key_metric_tabs = key_metric_card_data["keyMetricTabs"]
-        metrics = []
-        for keyTab in key_metric_tabs:
-            metric = keyTab["metricTabConfig"]["metric"].unwrap_str()
-            metrics.append(metric)
-        return metrics
-
-    def get_metric_total_from_tab(self, tab_json: Json, metric_name: str):
-        cards = tab_json.cards
-        key_metric_card_data = self.get_card(cards, "keyMetricCardData")["keyMetricCardData"]
-        key_metric_tabs = key_metric_card_data["keyMetricTabs"]
-        v = self.get_metric_total_from_key_metric_tabs(key_metric_tabs, metric_name)
-        return v
-
-    def get_float_metric_total_from_tab(self, tab_json: Json, metric_name: str) -> float:
-        v = self.get_metric_total_from_tab(tab_json=tab_json, metric_name=metric_name)
-        v = cast(float, v)
-        return v
-
-    def get_int_metric_total_from_tab(self, tab_json: Json, metric_name: str) -> int:
-        v = self.get_metric_total_from_tab(tab_json=tab_json, metric_name=metric_name)
-        v = cast(int, v)
-        return v
-
-    def get_join_result(self, join_json_results, join_key: str):
+    def _get_join_result(self, join_json_results, join_key: str):
         for r in join_json_results:
             if r["key"] == join_key:
                 return r
         raise Exception(f"Could not find join result {join_key}")
 
-    def render_join_body(self, join_body, video_id: str, days: int):
+    def _render_join_body(self, join_body, video_id: str, days: int):
         for node in join_body["nodes"]:
             restricts = node["value"]["query"]["restricts"]
             restricts[0]["inValues"][0] = video_id

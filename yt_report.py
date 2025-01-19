@@ -42,18 +42,18 @@ def get_video_stats(get_screen_js: str, video_id: str, title: str, days: int) ->
     likes, dislikes = studio_scraper.get_likes_dislikes(video_id=video_id, days=days)
 
     reach_tab = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_REACH", video_id=video_id, days=days)
-    metrics = studio_scraper.get_metrics(reach_tab)
+    metrics = reach_tab.get_metrics()
     if 'SHORTS_FEED_IMPRESSIONS' in metrics:
         print('short => skipping')
         return None
 
     engagement_tab = studio_scraper.load_tab(tab_name="ANALYTICS_TAB_ID_ENGAGEMENT", video_id=video_id, days=days)
 
-    impressions = studio_scraper.get_int_metric_total_from_tab(reach_tab, "VIDEO_THUMBNAIL_IMPRESSIONS")
-    ctr = studio_scraper.get_float_metric_total_from_tab(reach_tab, "VIDEO_THUMBNAIL_IMPRESSIONS_VTR")
-    views = studio_scraper.get_int_metric_total_from_tab(reach_tab, "VIEWS")
+    impressions = reach_tab.get_int_metric_total_from_tab("VIDEO_THUMBNAIL_IMPRESSIONS")
+    ctr = reach_tab.get_float_metric_total_from_tab("VIDEO_THUMBNAIL_IMPRESSIONS_VTR")
+    views = reach_tab.get_int_metric_total_from_tab("VIEWS")
 
-    average_watch_time_ms = studio_scraper.get_metric_total_from_tab(engagement_tab, "AVERAGE_WATCH_TIME")
+    average_watch_time_ms = engagement_tab.get_metric_total_from_tab("AVERAGE_WATCH_TIME")
     average_watch_time = average_watch_time_ms / 1000
     print('likes', likes, 'dislikes', dislikes)
     likes_per_k, dislikes_per_k = 0, 0
