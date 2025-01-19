@@ -24,7 +24,7 @@ def get_uploads_playlist_id_and_subscribers(api_key: str, channel_id: str) -> Tu
 def get_playlist_items(
     api_key: str,
     channel_id: str,
-    uploads_playlist_id: str,      
+    uploads_playlist_id: str
 ):
     next_page_token = None
     items = []

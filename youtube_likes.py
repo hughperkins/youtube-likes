@@ -6,6 +6,7 @@
 # (otherwise it won't handle non-latin characters ok)
 
 import argparse
+from dataclasses import dataclass
 import json
 from collections import defaultdict
 from typing import Any, Type
@@ -26,7 +27,15 @@ yaml = YAML()
 # warnings.simplefilter("ignore", yaml.error.UnsafeLoaderWarning)
 
 
-def get_video_ids_for_channel(api_key: str, channel_id: str) -> tuple[int, list[str]]:
+@dataclass
+class VideoIdTitle:
+    video_id: str
+    title: str
+    description: str
+    full_info: Any
+
+
+def get_video_id_names_for_channel(api_key: str, channel_id: str) -> tuple[int, list[VideoIdTitle]]:
     uploads_playlist_id, num_subscriptions = youtube_query_lib.get_uploads_playlist_id_and_subscribers(
         api_key=api_key, channel_id=channel_id
     )
@@ -35,19 +44,21 @@ def get_video_ids_for_channel(api_key: str, channel_id: str) -> tuple[int, list[
     play_list_items = youtube_query_lib.get_playlist_items(
         channel_id=channel_id, api_key=api_key, uploads_playlist_id=uploads_playlist_id)
     print('len(play_list_items)', len(play_list_items))
-    video_titles_ids = []
+    video_titles_ids: list[VideoIdTitle] = []
     print("titles:")
     for item in play_list_items:
+        # print(item)
         title = item["snippet"]["title"]
         print('- ', title)
+        description = item["snippet"]["description"]
         video_id = item["contentDetails"]["videoId"]
-        video_titles_ids.append({"title": title, "video_id": video_id})
+        video_titles_ids.append(VideoIdTitle(video_id=video_id, title=title, description=description, full_info=item))
 
     print("finished fetching video_titles_ids", len(video_titles_ids))
     print('len(video_titles_ids)', len(video_titles_ids))
 
-    video_ids = [v["video_id"] for v in video_titles_ids]
-    return num_subscriptions, video_ids
+    # video_ids = [v["video_id"] for v in video_titles_ids]
+    return num_subscriptions, video_titles_ids
 
 
 def get_stats_for_video(video_dict: dict[str, Any]) -> Video:
@@ -99,10 +110,11 @@ def get_stats_for_channel(
     for each of several timeframes
     """
 
-    num_subscriptions, video_ids = get_video_ids_for_channel(
+    num_subscriptions, video_id_titles = get_video_id_names_for_channel(
         api_key=api_key, channel_id=channel_id
     )
 
+    video_ids = [v.video_id for v in video_id_titles]
     video_infos = get_stats_for_videos(api_key=api_key, video_ids=video_ids)
     total_views = sum([v.views for v in video_infos])
     total_likes = sum([v.likes for v in video_infos])
@@ -272,7 +284,7 @@ def process_channel(channel_id: str, channel_abbrev: str, api_key: str, config: 
 
 
 def load_config(config_file: str) -> Config:
-    with open(args.config_file, "r") as f:
+    with open(config_file, "r") as f:
         config_dict = yaml.load(f)
     config = chili.init_dataclass(config_dict, Config)
     return config
@@ -337,7 +349,7 @@ def run(args) -> None:
             cache_mgr.write_cache(config=config, channel_abbrev=channel_abbrev, persisted=res["persisted"])
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="config.yml", type=str)
     parser.add_argument("--no-send-email", action="store_true")
@@ -346,3 +358,7 @@ if __name__ == "__main__":
     parser.add_argument("--priority", action="store_true")
     args = parser.parse_args()
     run(args)
+
+
+if __name__ == "__main__":
+    main()

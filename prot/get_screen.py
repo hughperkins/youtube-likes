@@ -101,6 +101,7 @@ def try_Json_class(res):
     views = get_metric_total2(key_metric_tabs, "VIEWS")
     # ctr = views / impressions * 100
     print('impressions', impressions, 'views', views, f'ctr {ctr:.1f}')
+    # print('views', views, f'ctr {ctr:.1f}')
 
 
 def load_tab(url: str, headers: Any, body: Any, tab_name: str, video_id: str, days: int) -> Json:
@@ -128,9 +129,9 @@ def get_metric_total3(tab_json: Json, metric_name: str):
     # impressions = res_json["cards"][0]["keyMetricCardData"]["keyMetricTabs"][0]["primaryContent"]["total"]
     key_metric_card_data = get_card2(cards, "keyMetricCardData")["keyMetricCardData"]
     key_metric_tabs = key_metric_card_data["keyMetricTabs"]
-    # print('key_metric_tab:')
-    # for key_metric_tab in key_metric_tabs:
-    #     print('    ', key_metric_tab["metricTabConfig"]["metric"].unwrap_str())
+    print('key_metric_tab:')
+    for key_metric_tab in key_metric_tabs:
+        print('    ', key_metric_tab["metricTabConfig"]["metric"].unwrap_str())
     # print('key_metric_tab:')
     # for key_metric_tab in key_metric_tabs:
     #     print('    ', key_metric_tab["metricTabConfig"]["metric"].unwrap_str())
@@ -186,24 +187,8 @@ def run(args) -> None:
     # print('totals', json.dumps(totals, indent=2))
     metric_columns = totals["value"]["resultTable"]["metricColumns"]
     # print('metric_columns', json.dumps(metric_columns, indent=2))
-    likes = metric_columns[1]["counts"]["total"]
-    dislikes = metric_columns[2]["counts"]["total"]
-    print('likes', likes, 'dislikes', dislikes)
-
-    # screen_config = body["screenConfig"]
-    # screen_config["entity"]["videoId"] = args.video_id
-    # print(json.dumps(screen_config, indent=2))
-    # desktop_state = body["desktopState"]
-    # ANALYTICS_TAB_ID_REACH
-    # ANALYTICS_TAB_ID_ENGAGEMENT
-    # desktop_state["tabId"] = "ANALYTICS_TAB_ID_ENGAGEMENT"
-    # print(json.dumps(desktop_state, indent=2))
-    # body_str = json.dumps(body)
-    # res = requests.post(url, headers=headers, data=body_str)
-    # if res.status_code >= 300:
-    #     print('ERROR', res, res.json())
-    #     return
-    # try_Json_class(res)
+    likes = metric_columns[1]["counts"].get("total", 0)
+    dislikes = metric_columns[2]["counts"].get("total", 0)
 
     reach_tab = load_tab(
         url=url, headers=headers, body=body, tab_name="ANALYTICS_TAB_ID_REACH", video_id=args.video_id, days=args.days)
@@ -218,6 +203,12 @@ def run(args) -> None:
     average_watch_time_ms = get_metric_total3(engagement_tab, "AVERAGE_WATCH_TIME")
     average_watch_time = average_watch_time_ms / 1000
     # print('average_watch_time', average_watch_time_ms, 'watch_time', watch_time_ms)
+    print('likes', likes, 'dislikes', dislikes)
+    likes_per_k, dislikes_per_k = 0, 0
+    if views > 0:
+        likes_per_k = int((likes * 1000) / views)
+        dislikes_per_k = int((dislikes * 1000) / views)
+    
     print('impressions', impressions, 'ctr', ctr, 'views', views, f'average_watch_time {average_watch_time:.1f}')
 
 

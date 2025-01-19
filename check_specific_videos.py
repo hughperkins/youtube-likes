@@ -46,7 +46,7 @@ def run(args) -> None:
         # channel_name = channel_config.name
         old_persisted = cache_mgr.load_cache(config=config, channel_abbrev=channel_abbrev)
         video_ids = [v["id"] for v in channel_config.specific_videos]
-        videos = youtube_likes.get_video_stats(api_key=api_key, video_ids=video_ids)
+        videos = youtube_likes.get_stats_for_videos(api_key=api_key, video_ids=video_ids)
         videos_by_channel_abbrev[channel_abbrev] = videos
         
         # youtube_likes.analyse_video(
