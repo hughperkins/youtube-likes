@@ -69,13 +69,16 @@ def get_stats_for_video(video_dict: dict[str, Any]) -> Video:
     views = int(s.get("viewCount", 0))
     print(f"- {title} views {views}")
     comments = int(s.get("commentCount", 0))
+    likes_per_k = 0
+    if views > 0:
+        likes_per_k = int(likes/views * 1000)
     return Video(
             video_id=video_id,
             title=title,
             views=views,
             likes=likes,
             comments=comments,
-            likes_per_k=int(likes/views * 1000),
+            likes_per_k=likes_per_k,
         )
 
 
@@ -167,7 +170,9 @@ def analyse_video(
         _change = _new_value - _old_value
         _chg_str = string_lib.int_to_signed_str(_change)
         if getattr(old_video, k) != getattr(new_video, k):
-            output.body += f"  {k} {_chg_str} => {_new_value}\n"
+            if k not in ['views', 'comments'] or _new_value > _old_value:
+                if k not in ["likes_per_k"] or output.body != "":
+                    output.body += f"  {k} {_chg_str} => {_new_value}\n"
 
             if (
                 k in ["views", "likes", "comments"]
