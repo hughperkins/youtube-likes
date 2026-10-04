@@ -1,8 +1,6 @@
-from dataclasses import dataclass
 import datetime
 import json
 from os import path
-import pytz
 from ruamel.yaml import YAML
 import chili
 
@@ -54,55 +52,68 @@ def datetime_str_to_datetime(datetime_str: str) -> datetime.datetime:
     return datetime.datetime.strptime(datetime_str, "%Y%m%d-%H%M")
 
 
-def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str) -> DeltaStats:
-    """
-    Load logfiles, and find the logentry closest in time to hours_delta ago, and compare that
-    to the log entry for now, and return this delta
-    """
-    yaml_filepath = path.expanduser(views_log_filepath_templ.format(abbrev=abbrev))
-    with open(yaml_filepath, "r") as f:
-        stats = yaml.load(f)
+def _iter_channel_stats(filepath: str):
+    """Stream the writer's JSON-per-line format; accept older YAML logs too."""
+    with open(filepath, "r") as f:
+        # Check the format before yielding, so a legacy YAML fallback cannot
+        # duplicate entries already processed. This scan uses constant memory.
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                if not line.startswith("- "):
+                    raise ValueError("legacy YAML")
+                json.loads(line[2:])
+            except ValueError:
+                f.seek(0)
+                yield from YAML(typ="safe").load(f) or []
+                return
+        f.seek(0)
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                yield json.loads(line[2:])
 
-    @dataclass
-    class LogLineDelta:
-        delta_hours: float
-        stat: ChannelStatsLogLine
 
-    stat_delta_l: list[LogLineDelta] = []
-    for stat_d in stats:
-        stat = chili.init_dataclass(stat_d, ChannelStatsLogLine)
-        dt = datetime_str_to_datetime(stat.dt)
-        dt = dt.replace(tzinfo=pytz.utc)
-        hours_old = (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() / 3600
-        if hours_old / 3600 > 24 * 3:
+def get_delta_stats_many(
+    hours_deltas: list[float], views_log_filepath_templ: str, abbrev: str,
+) -> dict[float, DeltaStats]:
+    """Find all requested baselines in one history scan, retaining only matches."""
+    filepath = path.expanduser(views_log_filepath_templ.format(abbrev=abbrev))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    closest = {}
+    distances = {}
+    newest = None
+    for stat in _iter_channel_stats(filepath):
+        dt = datetime_str_to_datetime(stat["dt"]).replace(tzinfo=datetime.timezone.utc)
+        hours_old = (now - dt).total_seconds() / 3600
+        if hours_old > 72:
             continue
-        delta = abs(hours_old - hours_delta)
-        stat_delta_l.append(LogLineDelta(delta_hours=delta, stat=stat))
-    new_stat = stat_delta_l[-1].stat
+        newest = (stat, dt)
+        for hours in hours_deltas:
+            distance = abs(hours_old - hours)
+            if hours not in distances or distance < distances[hours]:
+                distances[hours] = distance
+                closest[hours] = (stat, dt)
 
-    stat_delta_l.sort(key=lambda logline_delta: logline_delta.delta_hours)
-    old_stat = stat_delta_l[0].stat
-    new_dt = datetime_str_to_datetime(new_stat.dt)
-    old_dt = datetime_str_to_datetime(old_stat.dt)
-    d_hours = (new_dt - old_dt).total_seconds() / 3600
-    d_views = new_stat.views - old_stat.views
-    d_likes = new_stat.likes - old_stat.likes
-    print("    d_hours %.1f" % d_hours, "d_views", d_views, "d_likes", d_likes)
+    results = {}
+    for hours in hours_deltas:
+        d_views = d_likes = 0
+        if newest is not None:
+            new_stat, new_dt = newest
+            old_stat, old_dt = closest[hours]
+            elapsed = (new_dt - old_dt).total_seconds() / 3600
+            if elapsed > 0:
+                d_views = int((new_stat.get("views", 0) - old_stat.get("views", 0)) * hours / elapsed)
+                d_likes = int((new_stat.get("likes", 0) - old_stat.get("likes", 0)) * hours / elapsed)
+        results[hours] = DeltaStats(d_hours=hours, d_views=d_views, d_likes=d_likes)
+        print("    d_hours %.1f" % hours, "d_views", d_views, "d_likes", d_likes)
+    return results
 
-    if d_hours > 0:
-        d_views = int(d_views * hours_delta / d_hours)
-        d_likes = int(d_likes * hours_delta / d_hours)
-    else:
-        print('warning: d_hours is 0')
-        d_views = 0
-        d_likes = 0
-    print("    d_hours %.1f" % hours_delta, "d_views", d_views, "d_likes", d_likes)
 
-    return DeltaStats(
-        d_hours=hours_delta,
-        d_views=d_views,
-        d_likes=d_likes,
-    )
+def get_delta_stats(hours_delta: float, views_log_filepath_templ: str, abbrev: str) -> DeltaStats:
+    return get_delta_stats_many([hours_delta], views_log_filepath_templ, abbrev)[hours_delta]
 
 
 def get_datetime_str(dt: datetime.datetime) -> str:

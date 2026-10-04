@@ -15,7 +15,7 @@ import chili
 import chili.mapping
 from ruamel.yaml import YAML
 
-from youtube_likes_lib import process_logs, email_send_lib, youtube_query_lib, string_lib
+from youtube_likes_lib import email_send_lib, youtube_query_lib, string_lib
 from youtube_likes_lib.analyzers import Analyzer, Delta20, Mod100, Mod1000, Pct10
 from youtube_likes_lib import cache_mgr
 from youtube_likes_lib import view_logs
@@ -118,14 +118,11 @@ def get_stats_for_channel(
     video_infos = get_stats_for_videos(api_key=api_key, video_ids=video_ids)
     total_views = sum([v.views for v in video_infos])
     total_likes = sum([v.likes for v in video_infos])
-    delta_by_time = {}
-    for d_hours in [8, 24, 48]:
-        _res = process_logs.get_delta_stats(
-            hours_delta=d_hours,
-            views_log_filepath_templ=config.views_log_filepath_templ,
-            abbrev=channel_abbrev,
-        )
-        delta_by_time[d_hours] = _res
+    delta_by_time = view_logs.get_delta_stats_many(
+        hours_deltas=[8, 24, 48],
+        views_log_filepath_templ=config.views_log_filepath_templ,
+        abbrev=channel_abbrev,
+    )
     print('total_views', total_views, 'total_likes', total_likes)
     stats_snapshot = StatsSnapshot(
         videos=video_infos,
